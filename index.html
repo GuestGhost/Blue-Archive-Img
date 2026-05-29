@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blue Archive 파밍 효율 도우미</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Noto+Sans+KR:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ba-sky: #5BB8F5;
+  --ba-sky-dk: #2E8FC8;
+  --ba-sky-lt: #A8D8F0;
+  --ba-gold: #F5C842;
+  --ba-navy: #1A2C4E;
+  --ba-navy-lt: #2A4070;
+  --ba-white: #FFFFFF;
+  --ba-paper: #F4F8FD;
+  --ba-paper2: #E8F0F8;
+  --ba-border: #D0E4F4;
+  --ba-text: #1A2C4E;
+  --ba-text-sub: #6B82A0;
+  --ba-red: #E84058;
+  --ba-red-lt: #FEE8EC;
+  --ba-green: #2ECC8A;
+  --ba-green-lt: #D4F7EC;
+  --ba-purple: #8B7FD4;
+  --ba-shadow: 0 4px 16px rgba(91,184,245,0.12);
+  --ba-shadow-lg: 0 8px 32px rgba(91,184,245,0.2);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Noto Sans KR', sans-serif;
+  background: linear-gradient(135deg, #EEF6FF 0%, #F8FBFF 100%);
+  min-height: 100vh;
+  color: var(--ba-text);
+}
+.page-wrap {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+.ba-header {
+  background: linear-gradient(135deg, var(--ba-navy) 0%, var(--ba-navy-lt) 100%);
+
+  padding: 0 32px;
+  position: relative;
+  overflow: hidden;
+}
+.ba-header::after {
+  content: '';
+  position: absolute;
+  right: -40px; top: -40px;
+  width: 220px; height: 220px;
+  background: radial-gradient(circle, rgba(91,184,245,0.18) 0%, transparent 70%);
+  pointer-events: none;
+}
+.ba-header::before {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--ba-sky) 0%, var(--ba-gold) 50%, var(--ba-sky) 100%);
+}
+.ba-header-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 0;
+  gap: 16px;
+}
+.ba-logo-area {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.ba-logo-icon {
+  width: 44px; height: 44px;
+  background: linear-gradient(135deg, var(--ba-sky) 0%, var(--ba-sky-dk) 100%);
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  box-shadow: 0 4px 12px rgba(91,184,245,0.4);
+  flex-shrink: 0;
+}
+.ba-title-block {}
+.ba-title-en {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ba-sky-lt);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+.ba-title-ko {
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: var(--ba-white);
+  line-height: 1.2;
+  letter-spacing: -0.5px;
+}
+.ba-status-pill {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 30px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ba-sky-lt);
+  white-space: nowrap;
+}
+.ba-status-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #888;
+  flex-shrink: 0;
+}
+.ba-status-dot.ok  { background: var(--ba-green); box-shadow: 0 0 6px var(--ba-green); }
+.ba-status-dot.err { background: var(--ba-red); }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   인증 패널
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.auth-card {
+  background: var(--ba-white);
+  border-radius: 18px;
+  border: 1.5px solid var(--ba-border);
+  box-shadow: var(--ba-shadow);
+  overflow: hidden;
+  margin-top: 22px;
+  margin-bottom: 24px;
+}
+.auth-body {
+  padding: 18px 24px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.auth-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ba-text-sub);
+  letter-spacing: 1px;
+  min-width: 72px;
+}
+.auth-input {
+  flex: 1;
+  min-width: 180px;
+  padding: 10px 16px;
+  border-radius: 30px;
+  border: 1.5px solid var(--ba-border);
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ba-navy);
+  background: var(--ba-paper);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.auth-input:focus {
+  border-color: var(--ba-sky);
+  box-shadow: 0 0 0 3px rgba(91,184,245,0.18);
+}
+.ba-btn {
+  padding: 10px 20px;
+  border-radius: 30px;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s, filter 0.15s;
+  white-space: nowrap;
+}
+.ba-btn:hover { transform: translateY(-1px); filter: brightness(1.06); }
+.ba-btn:active { transform: translateY(0); }
+.ba-btn-ghost {
+  background: var(--ba-paper);
+  border: 1.5px solid var(--ba-border);
+  color: var(--ba-navy);
+}
+.ba-btn-primary {
+  background: linear-gradient(135deg, var(--ba-sky) 0%, var(--ba-sky-dk) 100%);
+  color: white;
+  box-shadow: 0 4px 14px rgba(91,184,245,0.38);
+}
+.auth-notice {
+  background: linear-gradient(90deg, #FFF9E6 0%, #FFFDF5 100%);
+  border-top: 1px solid #F5E8A0;
+  padding: 9px 24px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #8A6A00;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   섹션 타이틀
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 24px 0 14px;
+}
+.section-title-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.section-title-bar {
+  width: 4px;
+  height: 22px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, var(--ba-sky) 0%, var(--ba-sky-dk) 100%);
+}
+.section-title-text {
+  font-size: 1rem;
+  font-weight: 900;
+  color: var(--ba-navy);
+  letter-spacing: -0.3px;
+}
+.section-title-right { display: flex; gap: 8px; align-items: center; }
+
+.ba-btn-sm {
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1.5px solid var(--ba-border);
+  cursor: pointer;
+  background: var(--ba-white);
+  color: var(--ba-text-sub);
+  transition: 0.15s;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+.ba-btn-sm:hover { background: var(--ba-paper2); border-color: var(--ba-sky); color: var(--ba-sky-dk); }
+.ba-btn-sm-danger {
+  background: var(--ba-red-lt);
+  border-color: #F5B8BE;
+  color: var(--ba-red);
+}
+.ba-btn-sm-danger:hover { background: #F9D0D4; }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   인벤토리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.inventory-collapsible { transition: opacity 0.2s; }
+.inventory-collapsible.collapsed { display: none; }
+
+.item-group {
+  background: var(--ba-white);
+  border-radius: 16px;
+  border: 1.5px solid var(--ba-border);
+  padding: 18px 20px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(91,184,245,0.08);
+}
+.item-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--ba-paper2);
+}
+.item-group-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--ba-sky), var(--ba-sky-dk));
+}
+.item-group-name {
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--ba-navy);
+}
+.item-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 8px;
+}
+.item-input {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.item-input label {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--ba-text-sub);
+  letter-spacing: 0.5px;
+}
+.item-icon {
+  width: 48px;
+  height: 38px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: rgba(91,184,245,0.07);
+  border: 1px solid var(--ba-border);
+  padding: 2px;
+  display: block;
+}
+.item-icon-missing {
+  width: 48px;
+  height: 38px;
+  border-radius: 6px;
+  background: rgba(91,184,245,0.07);
+  border: 1px dashed var(--ba-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--ba-text-sub);
+}
+.item-input input {
+  width: 100%;
+  padding: 6px 4px;
+  border: 1.5px solid var(--ba-border);
+  border-radius: 10px;
+  text-align: center;
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--ba-sky-dk);
+  background: var(--ba-paper);
+  outline: none;
+  font-family: 'Rajdhani', sans-serif;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.item-input input:focus {
+  border-color: var(--ba-sky);
+  box-shadow: 0 0 0 3px rgba(91,184,245,0.18);
+  background: white;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   분석 버튼
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.btn-calc-wrap { margin: 20px 0; }
+.btn-calc {
+  width: 100%;
+  padding: 18px;
+  border-radius: 16px;
+  border: none;
+  cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  color: white;
+  background: linear-gradient(135deg, var(--ba-sky) 0%, #3A9BE0 50%, #2678C8 100%);
+  box-shadow: 0 6px 24px rgba(58,155,224,0.4);
+  transition: transform 0.15s, box-shadow 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.btn-calc::before { content: ''; display: block; width: 20px; height: 20px; background: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' fill='white' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18'/%3E%3C/svg%3E") center/contain no-repeat; flex-shrink: 0; }
+.btn-calc:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(58,155,224,0.5); }
+.btn-calc:active { transform: translateY(0); }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   stale 안내
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.stale-notice {
+  display: none;
+  background: linear-gradient(90deg, #FFF7E6 0%, #FFFCF0 100%);
+  border: 1.5px solid #F5D88A;
+  border-radius: 12px;
+  padding: 12px 18px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #8A5F00;
+  display: none;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   배수 선택
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.multiplier-area {
+  background: var(--ba-white);
+  border-radius: 16px;
+  border: 1.5px solid var(--ba-border);
+  padding: 14px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  box-shadow: 0 2px 8px rgba(91,184,245,0.08);
+}
+.multiplier-controls { display: flex; gap: 20px; flex-wrap: wrap; align-items: center; }
+.mul-group { display: flex; align-items: center; gap: 8px; }
+.mul-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ba-text-sub);
+  white-space: nowrap;
+}
+.mul-select {
+  padding: 7px 12px;
+  border-radius: 10px;
+  border: 1.5px solid var(--ba-border);
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ba-navy);
+  background: var(--ba-paper);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.mul-select:focus { border-color: var(--ba-sky); }
+.multiplier-note {
+  font-size: 11px;
+  color: var(--ba-text-sub);
+  font-weight: 600;
+  border-left: 3px solid var(--ba-border);
+  padding-left: 12px;
+  line-height: 1.6;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   필터 바
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.filter-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.filter-label { font-size: 12px; font-weight: 700; color: var(--ba-text-sub); margin-right: 4px; }
+.filter-btn {
+  padding: 6px 18px;
+  border-radius: 20px;
+  border: 1.5px solid var(--ba-border);
+  background: var(--ba-white);
+  font-family: 'Noto Sans KR', sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  transition: 0.15s;
+  color: var(--ba-text-sub);
+}
+.filter-btn:hover { border-color: var(--ba-sky); color: var(--ba-sky-dk); }
+.filter-btn.active-all  { background: var(--ba-navy); border-color: var(--ba-navy); color: white; }
+.filter-btn.active-hard { background: var(--ba-red);  border-color: var(--ba-red);  color: white; }
+.filter-btn.active-norm { background: var(--ba-sky-dk); border-color: var(--ba-sky-dk); color: white; }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   결과 카드
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.rec-card {
+  background: var(--ba-white);
+  border-radius: 18px;
+  border: 1.5px solid var(--ba-border);
+  margin-bottom: 16px;
+  overflow: hidden;
+  box-shadow: var(--ba-shadow);
+  transition: box-shadow 0.2s, transform 0.2s;
+  animation: card-in 0.35s ease both;
+}
+.rec-card:hover { box-shadow: var(--ba-shadow-lg); transform: translateY(-2px); }
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.rec-card:nth-child(2) { animation-delay: 0.04s; }
+.rec-card:nth-child(3) { animation-delay: 0.08s; }
+.rec-card:nth-child(4) { animation-delay: 0.12s; }
+.rec-card:nth-child(5) { animation-delay: 0.16s; }
+
+.rec-header {
+  padding: 14px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--ba-paper2);
+  position: relative;
+}
+.rec-header.is-hard {
+  background: linear-gradient(90deg, #FEF0F1 0%, #FFF7F7 100%);
+}
+.rec-header.is-norm {
+  background: linear-gradient(90deg, #EEF6FF 0%, #F6FBFF 100%);
+}
+.rec-header-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rec-title {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--ba-navy);
+  letter-spacing: 0.5px;
+}
+.rec-ap-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ba-text-sub);
+  background: rgba(255,255,255,0.7);
+  border: 1px solid var(--ba-border);
+  padding: 2px 9px;
+  border-radius: 20px;
+}
+.ap-eff-tag {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ba-purple);
+  background: rgba(139,127,212,0.1);
+  border: 1px solid rgba(139,127,212,0.25);
+  padding: 2px 9px;
+  border-radius: 20px;
+}
+.rec-header-right { display: flex; align-items: center; gap: 8px; }
+.score-tag {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ba-text-sub);
+}
+.badge {
+  font-size: 10px;
+  font-weight: 900;
+  padding: 3px 10px;
+  border-radius: 20px;
+  letter-spacing: 0.8px;
+  font-family: 'Rajdhani', sans-serif;
+}
+.badge-h { background: var(--ba-red-lt); color: var(--ba-red); border: 1px solid #F5B8BE; }
+.badge-n { background: #DCF0FF; color: var(--ba-sky-dk); border: 1px solid var(--ba-sky-lt); }
+
+.rec-body { padding: 14px 20px; }
+
+.hard-remain-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--ba-paper);
+  border: 1.5px solid var(--ba-border);
+  border-radius: 30px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ba-text-sub);
+  margin-bottom: 12px;
+}
+
+.farm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--ba-paper2);
+  gap: 8px;
+}
+.farm-row:last-of-type { border-bottom: none; }
+.item-name-area { flex: 1; min-width: 0; }
+.item-name-row { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+.item-name { font-size: 13px; font-weight: 700; color: var(--ba-text); }
+.item-qty { font-size: 11px; color: var(--ba-text-sub); font-weight: 600; }
+.drop-rate { font-size: 11px; color: var(--ba-sky-dk); font-weight: 700; margin-top: 2px; display: block; }
+.overflow-tag { font-size: 10px; font-weight: 800; background: #FEF3C7; color: #B45309; padding: 1px 6px; border-radius: 4px; }
+.qty-badge { font-size: 10px; font-weight: 800; background: var(--ba-green-lt); color: #1A7A52; padding: 2px 7px; border-radius: 6px; }
+
+.analysis-report {
+  background: linear-gradient(90deg, #FFFCF0 0%, #FFFEF7 100%);
+  border-top: 1px solid #F5E8A0;
+  padding: 10px 20px;
+  font-size: 11px;
+  color: #7A5800;
+  font-weight: 700;
+  line-height: 1.8;
+}
+
+/* 반영 버튼 */
+.btn-commit {
+  width: 100%;
+  margin-top: 12px;
+  padding: 11px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  color: white;
+  background: linear-gradient(135deg, var(--ba-navy) 0%, var(--ba-navy-lt) 100%);
+  transition: transform 0.15s, box-shadow 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  letter-spacing: 0.3px;
+}
+.btn-commit:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(26,44,78,0.3); }
+.btn-commit:active { transform: translateY(0); }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   결과 섹션 헤더 타이틀
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.results-header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.results-title {
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: var(--ba-navy);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.results-meta { font-size: 11px; color: var(--ba-text-sub); font-weight: 600; }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   로딩 오버레이
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+#loading {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(238,246,255,0.88);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  gap: 16px;
+}
+#loading.active { display: flex; }
+.loading-spinner {
+  width: 44px; height: 44px;
+  border: 4px solid var(--ba-paper2);
+  border-top-color: var(--ba-sky);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size: 14px; font-weight: 800; color: var(--ba-navy); }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   모달
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.modal {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(26,44,78,0.5);
+  backdrop-filter: blur(4px);
+  z-index: 2000;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 40px 16px;
+}
+.modal.active { display: flex; }
+.modal-content {
+  background: var(--ba-white);
+  max-width: 520px;
+  width: 100%;
+  border-radius: 24px;
+  box-shadow: 0 30px 60px rgba(26,44,78,0.3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modal-in 0.25s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(0.92) translateY(16px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.modal-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--ba-paper2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(90deg, var(--ba-navy) 0%, var(--ba-navy-lt) 100%);
+}
+.modal-header-title {
+  font-size: 16px;
+  font-weight: 900;
+  color: white;
+  font-family: 'Rajdhani', sans-serif;
+  letter-spacing: 0.5px;
+}
+.modal-close-btn {
+  background: rgba(255,255,255,0.15);
+  border: none;
+  border-radius: 8px;
+  width: 30px; height: 30px;
+  font-size: 18px;
+  cursor: pointer;
+  color: white;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s;
+}
+.modal-close-btn:hover { background: rgba(255,255,255,0.25); }
+.modal-body { padding: 20px 24px; }
+.modal-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--ba-paper2);
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.modal-item-row:last-child { border-bottom: none; }
+.modal-item-name { flex: 2; min-width: 130px; font-weight: 700; font-size: 13px; color: var(--ba-navy); display: flex; align-items: center; gap: 10px; }
+.modal-item-name small { font-size: 11px; color: var(--ba-text-sub); display: block; margin-top: 2px; font-weight: 600; }
+.modal-item-icon { width: 44px; height: 35px; object-fit: contain; border-radius: 6px; background: rgba(91,184,245,0.07); border: 1px solid var(--ba-border); padding: 2px; flex-shrink: 0; }
+.modal-item-input {
+  width: 90px;
+  padding: 8px;
+  border: 1.5px solid var(--ba-border);
+  border-radius: 10px;
+  text-align: center;
+  font-weight: 800;
+  font-size: 14px;
+  font-family: 'Rajdhani', sans-serif;
+  color: var(--ba-sky-dk);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.modal-item-input:focus { border-color: var(--ba-sky); }
+.modal-item-final {
+  min-width: 86px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ba-green);
+  background: var(--ba-green-lt);
+  padding: 4px 10px;
+  border-radius: 20px;
+  text-align: center;
+}
+.hard-selector-modal {
+  margin: 14px 0 6px;
+  padding: 12px 16px;
+  background: var(--ba-paper);
+  border-radius: 12px;
+  border: 1.5px solid var(--ba-border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ba-navy);
+}
+.hard-selector-modal select {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1.5px solid var(--ba-border);
+  font-family: 'Noto Sans KR', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  background: white;
+  color: var(--ba-navy);
+  cursor: pointer;
+  outline: none;
+}
+.modal-footer {
+  padding: 14px 24px 22px;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  border-top: 1px solid var(--ba-paper2);
+}
+.btn-modal-cancel {
+  padding: 10px 20px;
+  border-radius: 30px;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--ba-paper);
+  border: 1.5px solid var(--ba-border);
+  cursor: pointer;
+  color: var(--ba-text-sub);
+  transition: 0.15s;
+}
+.btn-modal-cancel:hover { border-color: var(--ba-sky); color: var(--ba-sky-dk); }
+.btn-modal-confirm {
+  padding: 10px 22px;
+  border-radius: 30px;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--ba-sky) 0%, var(--ba-sky-dk) 100%);
+  border: none;
+  cursor: pointer;
+  color: white;
+  box-shadow: 0 4px 14px rgba(91,184,245,0.4);
+  transition: 0.15s;
+}
+.btn-modal-confirm:hover { filter: brightness(1.08); transform: translateY(-1px); }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   토스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+#toast-container {
+  position: fixed;
+  bottom: 24px; right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+.toast {
+  padding: 12px 20px;
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: white;
+  box-shadow: 0 8px 28px rgba(26,44,78,0.2);
+  opacity: 0;
+  transform: translateY(14px) scale(0.97);
+  transition: opacity 0.3s, transform 0.3s;
+  max-width: 300px;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+.toast.show { opacity: 1; transform: translateY(0) scale(1); }
+.toast.success { background: linear-gradient(135deg, #2ECC8A, #1BAA6E); }
+.toast.error   { background: linear-gradient(135deg, var(--ba-red), #C04050); }
+.toast.info    { background: linear-gradient(135deg, var(--ba-sky), var(--ba-sky-dk)); }
+.toast.warning { background: linear-gradient(135deg, #F5C842, #D4A020); color: #2A1A00; }
+</style>
+</head>
+<body>
+
+<!-- 로딩 -->
+<div id="loading">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">데이터 처리 중...</div>
+</div>
+
+<!-- 토스트 -->
+<div id="toast-container"></div>
+
+<!-- 헤더 -->
+<div class="ba-header">
+  <div class="page-wrap">
+    <div class="ba-header-inner">
+      <div class="ba-logo-area">
+        <div class="ba-logo-icon">📋</div>
+        <div class="ba-title-block">
+          <div class="ba-title-en">Blue Archive</div>
+          <div class="ba-title-ko">파밍 효율 도우미</div>
+        </div>
+      </div>
+      <div class="ba-status-pill">
+        <div class="ba-status-dot" id="statusDot"></div>
+        <span id="load-status">연결 확인 중...</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="page-wrap">
+
+  <!-- 인증 -->
+  <div class="auth-card">
+    <div class="auth-body">
+      <span class="auth-label">친구코드</span>
+      <input class="auth-input" type="text" id="friendCode" placeholder="나만의 고유 코드를 입력하세요">
+      <button class="ba-btn ba-btn-ghost" onclick="syncLoad()">불러오기</button>
+      <button class="ba-btn ba-btn-primary" onclick="syncSave()">💾 저장</button>
+    </div>
+    <div class="auth-notice">⚠️ 비밀번호나 개인정보 대신 공개용 코드 또는 친구코드를 사용하세요.</div>
+  </div>
+
+  <!-- 앱 본문 -->
+  <div id="app-content" style="display:none;">
+
+    <!-- 인벤토리 -->
+    <div class="section-title">
+      <div class="section-title-left">
+        <div class="section-title-bar"></div>
+        <span class="section-title-text">📦 보유 설계도 인벤토리</span>
+      </div>
+      <div class="section-title-right">
+        <button class="ba-btn-sm ba-btn-sm-danger" onclick="resetHardCounts()">🔄 하드 초기화</button>
+        <button class="ba-btn-sm" id="toggleInventoryBtn">▼ 접기</button>
+      </div>
+    </div>
+
+    <div id="inventoryWrapper" class="inventory-collapsible">
+      <div id="inventory-ui"></div>
+    </div>
+
+    <!-- 분석 버튼 -->
+    <div class="btn-calc-wrap">
+      <button class="btn-calc" onclick="runAnalysis()">최적 파밍 구역 분석 시작</button>
+    </div>
+
+    <div class="stale-notice" id="stale-notice">
+      ⚠️ 인벤토리가 변경되었습니다. <b>분석 시작</b> 버튼을 다시 눌러 반영하세요.
+    </div>
+
+    <div id="results-area"></div>
+  </div>
+</div>
+
+<!-- 수량 입력 모달 -->
+<div id="quantityModal" class="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal-content">
+    <div class="modal-header">
+      <span class="modal-header-title" id="modalTitle">수량 입력</span>
+      <button class="modal-close-btn" onclick="closeModal()" aria-label="닫기">×</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">취소</button>
+      <button class="btn-modal-confirm" onclick="confirmModal()">반영하기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ━━━ 상수 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+const API_URL = "https://script.google.com/macros/s/AKfycbxHeNYJBcw-Iy0gUCx9uBpXLXyEqgIsDhxXNur-Yl1PXR-JtpH8FevIrDaUXYXzG2H7gA/exec";
+const CATEGORIES = { "Hat":"모자","Gloves":"장갑","Shoes":"신발","Bag":"가방","Badge":"배지","Hairpin":"헤어핀","Charm":"부적","Watch":"손목시계","Necklace":"목걸이" };
+const CATEGORY_ORDER = ["Hat","Gloves","Shoes","Bag","Badge","Hairpin","Charm","Watch","Necklace"];
+
+/* ━━━ 상태 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+let GLOBAL_RAW_DATA = [];
+let activeModalInfo  = null;
+let _activeFilter    = 'all';
+let _lastSortedArea  = null;
+let _lastGlobalAvg   = 0;
+let _lastHData       = {};
+let _mulN = 1, _mulH = 1;
+let _invDebounceTimer = null;
+
+/* ━━━ 토스트 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function showToast(msg, type = 'info', duration = 2800) {
+    const c = document.getElementById('toast-container');
+    const t = document.createElement('div');
+    t.className = `toast ${type}`;
+    t.textContent = msg;
+    c.appendChild(t);
+    requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('show')));
+    setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 350); }, duration);
+}
+
+/* ━━━ 로딩 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function setLoading(on) {
+    document.getElementById('loading').classList.toggle('active', on);
+}
+
+/* ━━━ 초기화 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+window.addEventListener('load', () => {
+    const savedCode = localStorage.getItem('ba_friend_code');
+    if (savedCode) document.getElementById('friendCode').value = savedCode;
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+    const toggleBtn  = document.getElementById('toggleInventoryBtn');
+    const invWrapper = document.getElementById('inventoryWrapper');
+    if (toggleBtn && invWrapper) {
+        const isCollapsed = localStorage.getItem('ba_inventory_collapsed') === 'true';
+        if (isCollapsed) { invWrapper.classList.add('collapsed'); toggleBtn.textContent = '▶ 펼치기'; }
+        toggleBtn.addEventListener('click', () => {
+            const collapsed = invWrapper.classList.toggle('collapsed');
+            toggleBtn.textContent = collapsed ? '▶ 펼치기' : '▼ 접기';
+            localStorage.setItem('ba_inventory_collapsed', String(collapsed));
+        });
+    }
+    autoInit();
+});
+
+/* ━━━ API: 초기 로드 ━━━━━━━━━━━━━━━━━━━━━━ */
+async function autoInit() {
+    const statusEl  = document.getElementById('load-status');
+    const statusDot = document.getElementById('statusDot');
+    try {
+        const res  = await fetch(API_URL);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (data.success) {
+            GLOBAL_RAW_DATA = data.farming_data;
+            statusEl.textContent  = '시스템 정상';
+            statusDot.className   = 'ba-status-dot ok';
+            document.getElementById('app-content').style.display = 'block';
+            drawInventory();
+            runAnalysis();
+        } else throw new Error('API error');
+    } catch (e) {
+        statusEl.textContent = e.message.startsWith('HTTP') ? `서버 오류 (${e.message})` : 'DB 연결 실패';
+        statusDot.className  = 'ba-status-dot err';
+        console.error('[autoInit]', e);
+    }
+}
+
+/* ━━━ API: 불러오기 ━━━━━━━━━━━━━━━━━━━━━━━ */
+async function syncLoad() {
+    const code = document.getElementById('friendCode').value.trim();
+    if (!code) return showToast('코드를 입력하세요.', 'warning');
+    setLoading(true);
+    try {
+        const res  = await fetch(`${API_URL}?id=${encodeURIComponent(code)}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (data.success) {
+            localStorage.setItem('ba_inv_data',    data.user.inv);
+            localStorage.setItem('ba_hard_count',  data.user.hard);
+            localStorage.setItem('ba_friend_code', code);
+            drawInventory(); runAnalysis();
+            showToast('✅ 동기화 완료!', 'success');
+        } else showToast('❌ 코드를 찾을 수 없습니다.', 'error');
+    } catch (e) { showToast('❌ 불러오기 실패: 네트워크 오류', 'error'); console.error(e); }
+    finally { setLoading(false); }
+}
+
+/* ━━━ API: 저장 ━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+async function syncSave() {
+    const code = document.getElementById('friendCode').value.trim();
+    if (!code) return showToast('코드를 입력하세요.', 'warning');
+    setLoading(true);
+    try {
+        const res  = await fetch(API_URL, { method:'POST', body: JSON.stringify({ id:code, inv:localStorage.getItem('ba_inv_data'), hard:localStorage.getItem('ba_hard_count'), date:new Date().toLocaleDateString() }) });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (data.success !== false) showToast('💾 저장 완료!', 'success');
+        else showToast('❌ 저장 실패: 서버 오류', 'error');
+    } catch (e) { showToast('❌ 저장 실패: 네트워크 오류', 'error'); console.error(e); }
+    finally { setLoading(false); }
+}
+
+/* ━━━ 인벤토리 렌더링 ━━━━━━━━━━━━━━━━━━━━━ */
+function drawInventory() {
+    const root  = document.getElementById('inventory-ui');
+    const saved = JSON.parse(localStorage.getItem('ba_inv_data') || '{}');
+    const frag  = document.createDocumentFragment();
+    Object.keys(CATEGORIES).forEach(cat => {
+        const group = document.createElement('div');
+        group.className = 'item-group';
+
+        const hdr = document.createElement('div');
+        hdr.className = 'item-group-header';
+        hdr.innerHTML = `<div class="item-group-dot"></div><span class="item-group-name">${CATEGORIES[cat]}</span>`;
+        group.appendChild(hdr);
+
+        const grid = document.createElement('div');
+        grid.className = 'item-grid';
+        for (let t = 1; t <= 10; t++) {
+            const k = `${cat}_T${t}`;
+            const wrap = document.createElement('div');
+            wrap.className = 'item-input';
+            const lbl = document.createElement('label');
+            lbl.textContent = `T${t}`; lbl.htmlFor = k;
+            // 아이콘 이미지
+            const ICON_MAP = {
+                Hat:     ["Equipment_Icon_Hat_Tier1.png","Equipment_Icon_Hat_Tier2.png","Equipment_Icon_Hat_Tier3.png","Equipment_Icon_Hat_Tier4.png","Equipment_Icon_Hat_Tier5.png","Equipment_Icon_Hat_Tier6.png","Equipment_Icon_Hat_Tier7.png","Equipment_Icon_Hat_Tier8.png","Equipment_Icon_Hat_Tier9.png","Equipment_Icon_Hat_Tier10.png"],
+                Gloves:  ["Equipment_Icon_Gloves_Tier1.png","Equipment_Icon_Gloves_Tier2.png","Equipment_Icon_Gloves_Tier3.png","Equipment_Icon_Gloves_Tier4.png","Equipment_Icon_Gloves_Tier5.png","Equipment_Icon_Gloves_Tier6.png","Equipment_Icon_Gloves_Tier7.png","Equipment_Icon_Gloves_Tier8.png","Equipment_Icon_Gloves_Tier9.png","Equipment_Icon_Gloves_Tier10.png"],
+                Shoes:   ["Equipment_Icon_Shoes_Tier1.png","Equipment_Icon_Shoes_Tier2.png","Equipment_Icon_Shoes_Tier3.png","Equipment_Icon_Shoes_Tier4.png","Equipment_Icon_Shoes_Tier5.png","Equipment_Icon_Shoes_Tier6.png","Equipment_Icon_Shoes_Tier7.png","Equipment_Icon_Shoes_Tier8.png","Equipment_Icon_Shoes_Tier9.png","Equipment_Icon_Shoes_Tier10.png"],
+                Bag:     ["Equipment_Icon_Bag_Tier1.png","Equipment_Icon_Bag_Tier2.png","Equipment_Icon_Bag_Tier3.png","Equipment_Icon_Bag_Tier4.png","Equipment_Icon_Bag_Tier5.png","Equipment_Icon_Bag_Tier6.png","Equipment_Icon_Bag_Tier7.png","Equipment_Icon_Bag_Tier8.png","Equipment_Icon_Bag_Tier9.png","Equipment_Icon_Bag_Tier10.png"],
+                Badge:   ["Equipment_Icon_Badge_Tier1.png","Equipment_Icon_Badge_Tier2.png","Equipment_Icon_Badge_Tier3.png","Equipment_Icon_Badge_Tier4.png","Equipment_Icon_Badge_Tier5.png","Equipment_Icon_Badge_Tier6.png","Equipment_Icon_Badge_Tier7.png","Equipment_Icon_Badge_Tier8.png","Equipment_Icon_Badge_Tier9.png","Equipment_Icon_Badge_Tier10.png"],
+                Hairpin: ["Equipment_Icon_Hairpin_Tier1.png","Equipment_Icon_Hairpin_Tier2.png","Equipment_Icon_Hairpin_Tier3.png","Equipment_Icon_Hairpin_Tier4.png","Equipment_Icon_Hairpin_Tier5.png","Equipment_Icon_Hairpin_Tier6.png","Equipment_Icon_Hairpin_Tier7.png","Equipment_Icon_Hairpin_Tier8.png","Equipment_Icon_Hairpin_Tier9.png","Equipment_Icon_Hairpin_Tier10.png"],
+                Charm:   ["Equipment_Icon_Charm_Tier1.png","Equipment_Icon_Charm_Tier2.png","Equipment_Icon_Charm_Tier3.png","Equipment_Icon_Charm_Tier4.png","Equipment_Icon_Charm_Tier5.png","Equipment_Icon_Charm_Tier6.png","Equipment_Icon_Charm_Tier7.png","Equipment_Icon_Charm_Tier8.png","Equipment_Icon_Charm_Tier9.png","Equipment_Icon_Charm_Tier10.png"],
+                Watch:   ["Equipment_Icon_Watch_Tier1.png","Equipment_Icon_Watch_Tier2.png","Equipment_Icon_Watch_Tier3.png","Equipment_Icon_Watch_Tier4.png","Equipment_Icon_Watch_Tier5.png","Equipment_Icon_Watch_Tier6.png","Equipment_Icon_Watch_Tier7.png","Equipment_Icon_Watch_Tier8.png","Equipment_Icon_Watch_Tier9.png","Equipment_Icon_Watch_Tier10.png"],
+                Necklace:["Equipment_Icon_Necklace_Tier1.png","Equipment_Icon_Necklace_Tier2.png","Equipment_Icon_Necklace_Tier3.png","Equipment_Icon_Necklace_Tier4.png","Equipment_Icon_Necklace_Tier5.png","Equipment_Icon_Necklace_Tier6.png","Equipment_Icon_Necklace_Tier7.png","Equipment_Icon_Necklace_Tier8.png","Equipment_Icon_Necklace_Tier9.png","Equipment_Icon_Necklace_Tier10.png"],
+            };
+            const BASE_IMG = "https://raw.githubusercontent.com/GuestGhost/Blue-Archive-Img/refs/heads/main/images";
+            const iconFile = ICON_MAP[cat] && ICON_MAP[cat][t-1];
+            if (iconFile) {
+                const img = document.createElement('img');
+                img.src = `${BASE_IMG}/${iconFile}`;
+                img.alt = `T${t}`;
+                img.className = 'item-icon';
+                img.loading = 'lazy';
+                wrap.appendChild(img);
+            }
+            const inp = document.createElement('input');
+            inp.type = 'number'; inp.id = k; inp.min = '0'; inp.value = saved[k] || 0;
+            inp.addEventListener('change', onInventoryChange);
+            wrap.appendChild(lbl); wrap.appendChild(inp);
+            grid.appendChild(wrap);
+        }
+        group.appendChild(grid);
+        frag.appendChild(group);
+    });
+    root.innerHTML = '';
+    root.appendChild(frag);
+}
+
+/* ━━━ 인벤토리 변경 (debounce) ━━━━━━━━━━━━ */
+function onInventoryChange() {
+    const data = {};
+    document.querySelectorAll('.item-input input').forEach(el => {
+        data[el.id] = Math.max(parseInt(el.value) || 0, 0);
+    });
+    localStorage.setItem('ba_inv_data', JSON.stringify(data));
+    clearTimeout(_invDebounceTimer);
+    _invDebounceTimer = setTimeout(() => {
+        document.getElementById('stale-notice').style.display = 'flex';
+    }, 300);
+}
+
+/* ━━━ 배수 변경 ━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function getMultipliers() { return { mulN: _mulN, mulH: _mulH }; }
+function onMulChange() {
+    const selN = document.getElementById('mulNormal');
+    const selH = document.getElementById('mulHard');
+    if (selN) _mulN = parseInt(selN.value);
+    if (selH) _mulH = parseInt(selH.value);
+    runAnalysis();
+}
+
+/* ━━━ 분석 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function runAnalysis() {
+    const inv   = JSON.parse(localStorage.getItem('ba_inv_data') || '{}');
+    const hData = JSON.parse(localStorage.getItem('ba_hard_count') || '{}');
+    const { mulN, mulH } = getMultipliers();
+    document.getElementById('stale-notice').style.display = 'none';
+    const area = document.getElementById('results-area');
+    area.innerHTML = `<div style="text-align:center;padding:40px;color:var(--ba-text-sub);font-weight:700">⏳ 분석 중...</div>`;
+
+    requestAnimationFrame(() => {
+        const allCounts  = GLOBAL_RAW_DATA.map(item => inv[`${item.category}_T${item.tier}`] || 0);
+        const globalAvg  = allCounts.reduce((a,b) => a+b, 0) / (allCounts.length || 1);
+        const globalMin  = allCounts.length ? Math.min(...allCounts) : 0;
+        const globalMax  = allCounts.length ? Math.max(...allCounts) : 0;
+        const globalRange= Math.max(globalMax - globalMin, 1);
+
+        const areaScores = {};
+        GLOBAL_RAW_DATA.forEach(item => {
+            const k = `${item.category}_T${item.tier}`;
+            const count = inv[k] || 0;
+            item.mission_drops.forEach(d => {
+                const loc = d.mission;
+                const isH = loc.includes('H');
+                if (isH && (hData[loc] || 0) >= 3) return;
+                if (!areaScores[loc]) areaScores[loc] = { drops:[], isH, ap: isH?20:10, score:0, minCount:Infinity, maxTierOfMin:0, topItemInfo:'', scoreBreakdown:[] };
+                if (!areaScores[loc].drops.some(x => x.id === k)) {
+                    areaScores[loc].drops.push({ id:k, name:`${item.tier}T ${item.name_ko}`, rate:d.rates_percent[0], m: isH?mulH:mulN, tier:item.tier, category:item.category, count });
+                }
+                if (count < areaScores[loc].minCount) { areaScores[loc].minCount = count; areaScores[loc].maxTierOfMin = item.tier; areaScores[loc].topItemInfo = `${item.tier}T ${item.name_ko} (보유: ${count})`; }
+                else if (count === areaScores[loc].minCount && item.tier > areaScores[loc].maxTierOfMin) { areaScores[loc].maxTierOfMin = item.tier; areaScores[loc].topItemInfo = `${item.tier}T ${item.name_ko} (보유: ${count})`; }
+            });
+        });
+
+        Object.entries(areaScores).forEach(([loc, info]) => {
+            if (!info.drops.length) return;
+            const counts = info.drops.map(d => d.count);
+            const areaAvg = counts.reduce((a,b) => a+b, 0) / counts.length;
+            const variance = counts.reduce((s,c) => s + Math.pow(c-areaAvg,2), 0) / counts.length;
+            const stdDev = Math.sqrt(variance);
+            const spreadPenalty = Math.min(stdDev / (globalRange*0.5+1), 0.5);
+            let totalScore = 0;
+            info.drops.forEach(drop => {
+                const c = drop.count, t = drop.tier;
+                const expQty = (drop.rate/100) * drop.m;
+                const needRatio = 1 - (c-globalMin)/(globalRange+1);
+                let overflowPenalty = 1.0;
+                if (globalAvg > 0 && c > globalAvg*2.5) overflowPenalty = Math.max(1/(c/(globalAvg*2.5)), 0.05);
+                const itemScore = needRatio * overflowPenalty * (1+(t-1)*0.15) * expQty * (10/info.ap);
+                totalScore += itemScore;
+                info.scoreBreakdown.push({ name:drop.name, count:c, needRatio:needRatio.toFixed(2), overflow:overflowPenalty.toFixed(2), itemScore:itemScore.toFixed(3) });
+            });
+            info.score = totalScore * (1-spreadPenalty);
+            info.remainingHard = Math.max(3-(hData[loc]||0), 0);
+            info._debug = {
+                areaMin:Math.min(...counts), areaMax:Math.max(...counts),
+                areaAvg:areaAvg.toFixed(1), stdDev:stdDev.toFixed(1),
+                spreadPenalty:spreadPenalty.toFixed(2), rawScore:totalScore.toFixed(3), finalScore:info.score.toFixed(3)
+            };
+        });
+
+        const allSorted = Object.entries(areaScores).filter(([,i]) => i.drops.length > 0).sort((a,b) => {
+            if (Math.abs(b[1].score-a[1].score) > 0.0001) return b[1].score-a[1].score;
+            if (a[1].minCount !== b[1].minCount) return a[1].minCount-b[1].minCount;
+            return b[1].maxTierOfMin-a[1].maxTierOfMin;
+        });
+
+        _lastSortedArea = allSorted; _lastGlobalAvg = globalAvg; _lastHData = hData;
+        renderResults(allSorted, globalAvg, hData, _activeFilter, mulN, mulH);
+    });
+}
+
+/* ━━━ 필터 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function setFilter(mode) {
+    _activeFilter = mode;
+    document.querySelectorAll('.filter-btn').forEach(b => b.className = 'filter-btn');
+    const btn = document.getElementById('filter-btn-' + mode);
+    if (btn) btn.classList.add('active-' + mode);
+    if (_lastSortedArea) renderResults(_lastSortedArea, _lastGlobalAvg, _lastHData, mode, _mulN, _mulH);
+}
+
+/* ━━━ 하드 초기화 ━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function resetHardCounts() {
+    if (confirm('모든 하드 구역의 소탕 횟수를 0으로 초기화하시겠습니까?')) {
+        localStorage.setItem('ba_hard_count', JSON.stringify({}));
+        runAnalysis();
+        showToast('🔄 하드 횟수 초기화 완료', 'info');
+    }
+}
+
+/* ━━━ 결과 렌더링 ━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function renderResults(allSorted, globalAvg, hData, filterMode, mulN, mulH) {
+    let filtered = allSorted;
+    if (filterMode === 'hard') filtered = allSorted.filter(([,i]) => i.isH);
+    else if (filterMode === 'norm') filtered = allSorted.filter(([,i]) => !i.isH);
+    const top10 = filtered.slice(0, 10);
+
+    const area = document.getElementById('results-area');
+    const multiplierHtml = `
+        <div class="multiplier-area">
+            <div class="multiplier-controls">
+                <div class="mul-group">
+                    <span class="mul-label">🎁 노말 배수</span>
+                    <select class="mul-select" id="mulNormal" onchange="onMulChange()">
+                        <option value="1" ${mulN===1?'selected':''}>1배 (기본)</option>
+                        <option value="2" ${mulN===2?'selected':''}>2배 이벤트</option>
+                        <option value="3" ${mulN===3?'selected':''}>3배 이벤트</option>
+                    </select>
+                </div>
+                <div class="mul-group">
+                    <span class="mul-label">🎁 하드 배수</span>
+                    <select class="mul-select" id="mulHard" onchange="onMulChange()">
+                        <option value="1" ${mulH===1?'selected':''}>1배 (기본)</option>
+                        <option value="2" ${mulH===2?'selected':''}>2배 이벤트</option>
+                        <option value="3" ${mulH===3?'selected':''}>3배 이벤트</option>
+                    </select>
+                </div>
+            </div>
+            <div class="multiplier-note">ℹ️ 이벤트 배수는 드롭 <b>확률</b>이 아닌<br>드롭 <b>수량</b>이 늘어나는 이벤트입니다.</div>
+        </div>`;
+
+    const headerHtml = `
+        <div class="results-header">
+            <div class="results-title">
+                <div class="section-title-bar" style="height:18px;"></div>
+                📍 추천 파밍 구역 TOP 10
+            </div>
+            <span class="results-meta">평균 보유량 ${globalAvg.toFixed(0)}개 기준</span>
+        </div>
+        <div class="filter-bar">
+            <span class="filter-label">필터</span>
+            <button id="filter-btn-all"  class="filter-btn ${filterMode==='all' ?'active-all' :''}" onclick="setFilter('all')">전체</button>
+            <button id="filter-btn-norm" class="filter-btn ${filterMode==='norm'?'active-norm':''}" onclick="setFilter('norm')">🔵 노말</button>
+            <button id="filter-btn-hard" class="filter-btn ${filterMode==='hard'?'active-hard':''}" onclick="setFilter('hard')">🔴 하드</button>
+        </div>
+        ${multiplierHtml}`;
+
+    if (!top10.length) {
+        area.innerHTML = headerHtml + `<div style="text-align:center;padding:40px;color:var(--ba-text-sub);font-weight:700">해당 조건에 맞는 추천 구역이 없습니다.</div>`;
+        return;
+    }
+
+    const cardParts = top10.map(([loc, info]) => {
+        const sortedDrops = [...info.drops].sort((a,b) => {
+            if (a.tier !== b.tier) return b.tier - a.tier;
+            return CATEGORY_ORDER.indexOf(b.category) - CATEGORY_ORDER.indexOf(a.category);
+        });
+
+        const itemListHtml = sortedDrops.map(u => {
+            const isOverflow  = globalAvg > 0 && u.count > globalAvg * 2.5;
+            const overflowTag = isOverflow ? `<span class="overflow-tag">⚠️ 과잉</span>` : '';
+            const rowStyle    = isOverflow ? 'opacity:0.5;' : '';
+            const qtyInfo     = u.m > 1 ? `<span class="qty-badge">${u.m}배 이벤트</span>` : '';
+            return `<div class="farm-row" style="${rowStyle}">
+                <div class="item-name-area">
+                    <div class="item-name-row">
+                        <span class="item-name">${u.name}</span>
+                        ${overflowTag}
+                        <span class="item-qty">(보유 ${u.count})</span>
+                        ${qtyInfo}
+                    </div>
+                    <span class="drop-rate">드롭 확률 ${u.rate}%</span>
+                </div>
+            </div>`;
+        }).join('');
+
+        const usedNow = hData[loc] || 0;
+        const remaining = 3 - usedNow;
+        const hardRemainInfo = info.isH
+            ? `<div class="hard-remain-badge">🎫 오늘 남은 소탕: <b>${remaining}회</b></div>`
+            : '';
+
+        const d = info._debug;
+        const apEff = (info.score / (info.ap / 10)).toFixed(2);
+        return `<div class="rec-card">
+            <div class="rec-header ${info.isH ? 'is-hard' : 'is-norm'}">
+                <div class="rec-header-left">
+                    <span class="rec-title">${loc}</span>
+                    <span class="rec-ap-tag">${info.ap}AP</span>
+                    <span class="ap-eff-tag">효율 ${apEff}</span>
+                </div>
+                <div class="rec-header-right">
+                    <span class="score-tag">점수 ${info.score.toFixed(2)}</span>
+                    <span class="badge ${info.isH?'badge-h':'badge-n'}">${info.isH?'HARD':'NORMAL'}</span>
+                </div>
+            </div>
+            <div class="rec-body">
+                ${hardRemainInfo}
+                ${itemListHtml}
+                <button class="btn-commit" onclick="openModalForCard('${loc}', ${info.isH})">📦 수량 입력 & 반영</button>
+            </div>
+            <div class="analysis-report">
+                💡 <b>분석:</b>
+                최솟값 <b>${info.minCount}개</b> · 구역평균 <b>${d.areaAvg}개</b> · 편차 <b>±${d.stdDev}</b> · 편차패널티 <b>${(d.spreadPenalty*100).toFixed(0)}%</b> · AP효율점수 <b>${Number(d.finalScore).toFixed(2)}</b>
+                &nbsp;|&nbsp; 핵심: <b>${info.topItemInfo}</b>
+            </div>
+        </div>`;
+    });
+
+    area.innerHTML = headerHtml + cardParts.join('');
+}
+
+/* ━━━ 모달: 열기 ━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function openModalForCard(loc, isH) {
+    if (!_lastSortedArea) return;
+    const found = _lastSortedArea.find(([l]) => l === loc);
+    if (!found) { showToast('❌ 구역 정보를 찾을 수 없습니다.', 'error'); return; }
+
+    const hData = JSON.parse(localStorage.getItem('ba_hard_count') || '{}');
+    const areaInfo = found[1];
+    const drops = areaInfo.drops;
+    const remainingHard = isH ? Math.max(3-(hData[loc]||0), 0) : 0;
+    activeModalInfo = { loc, isH, drops, remainingHard, currentHardUsed: hData[loc]||0 };
+
+    document.getElementById('modalTitle').textContent = `${loc} 수량 입력`;
+    const modalBody = document.getElementById('modalBody');
+    const frag = document.createDocumentFragment();
+
+    [...drops].sort((a,b) => {
+        if (a.tier !== b.tier) return b.tier-a.tier;
+        return CATEGORY_ORDER.indexOf(b.category) - CATEGORY_ORDER.indexOf(a.category);
+    }).forEach(drop => {
+        const cc = drop.count;
+        const row = document.createElement('div'); row.className = 'modal-item-row';
+        const nd  = document.createElement('div'); nd.className = 'modal-item-name';
+        // 아이콘 이미지
+        const MODAL_ICON_MAP = {
+            Hat:     ["Equipment_Icon_Hat_Tier1.png","Equipment_Icon_Hat_Tier2.png","Equipment_Icon_Hat_Tier3.png","Equipment_Icon_Hat_Tier4.png","Equipment_Icon_Hat_Tier5.png","Equipment_Icon_Hat_Tier6.png","Equipment_Icon_Hat_Tier7.png","Equipment_Icon_Hat_Tier8.png","Equipment_Icon_Hat_Tier9.png","Equipment_Icon_Hat_Tier10.png"],
+            Gloves:  ["Equipment_Icon_Gloves_Tier1.png","Equipment_Icon_Gloves_Tier2.png","Equipment_Icon_Gloves_Tier3.png","Equipment_Icon_Gloves_Tier4.png","Equipment_Icon_Gloves_Tier5.png","Equipment_Icon_Gloves_Tier6.png","Equipment_Icon_Gloves_Tier7.png","Equipment_Icon_Gloves_Tier8.png","Equipment_Icon_Gloves_Tier9.png","Equipment_Icon_Gloves_Tier10.png"],
+            Shoes:   ["Equipment_Icon_Shoes_Tier1.png","Equipment_Icon_Shoes_Tier2.png","Equipment_Icon_Shoes_Tier3.png","Equipment_Icon_Shoes_Tier4.png","Equipment_Icon_Shoes_Tier5.png","Equipment_Icon_Shoes_Tier6.png","Equipment_Icon_Shoes_Tier7.png","Equipment_Icon_Shoes_Tier8.png","Equipment_Icon_Shoes_Tier9.png","Equipment_Icon_Shoes_Tier10.png"],
+            Bag:     ["Equipment_Icon_Bag_Tier1.png","Equipment_Icon_Bag_Tier2.png","Equipment_Icon_Bag_Tier3.png","Equipment_Icon_Bag_Tier4.png","Equipment_Icon_Bag_Tier5.png","Equipment_Icon_Bag_Tier6.png","Equipment_Icon_Bag_Tier7.png","Equipment_Icon_Bag_Tier8.png","Equipment_Icon_Bag_Tier9.png","Equipment_Icon_Bag_Tier10.png"],
+            Badge:   ["Equipment_Icon_Badge_Tier1.png","Equipment_Icon_Badge_Tier2.png","Equipment_Icon_Badge_Tier3.png","Equipment_Icon_Badge_Tier4.png","Equipment_Icon_Badge_Tier5.png","Equipment_Icon_Badge_Tier6.png","Equipment_Icon_Badge_Tier7.png","Equipment_Icon_Badge_Tier8.png","Equipment_Icon_Badge_Tier9.png","Equipment_Icon_Badge_Tier10.png"],
+            Hairpin: ["Equipment_Icon_Hairpin_Tier1.png","Equipment_Icon_Hairpin_Tier2.png","Equipment_Icon_Hairpin_Tier3.png","Equipment_Icon_Hairpin_Tier4.png","Equipment_Icon_Hairpin_Tier5.png","Equipment_Icon_Hairpin_Tier6.png","Equipment_Icon_Hairpin_Tier7.png","Equipment_Icon_Hairpin_Tier8.png","Equipment_Icon_Hairpin_Tier9.png","Equipment_Icon_Hairpin_Tier10.png"],
+            Charm:   ["Equipment_Icon_Charm_Tier1.png","Equipment_Icon_Charm_Tier2.png","Equipment_Icon_Charm_Tier3.png","Equipment_Icon_Charm_Tier4.png","Equipment_Icon_Charm_Tier5.png","Equipment_Icon_Charm_Tier6.png","Equipment_Icon_Charm_Tier7.png","Equipment_Icon_Charm_Tier8.png","Equipment_Icon_Charm_Tier9.png","Equipment_Icon_Charm_Tier10.png"],
+            Watch:   ["Equipment_Icon_Watch_Tier1.png","Equipment_Icon_Watch_Tier2.png","Equipment_Icon_Watch_Tier3.png","Equipment_Icon_Watch_Tier4.png","Equipment_Icon_Watch_Tier5.png","Equipment_Icon_Watch_Tier6.png","Equipment_Icon_Watch_Tier7.png","Equipment_Icon_Watch_Tier8.png","Equipment_Icon_Watch_Tier9.png","Equipment_Icon_Watch_Tier10.png"],
+            Necklace:["Equipment_Icon_Necklace_Tier1.png","Equipment_Icon_Necklace_Tier2.png","Equipment_Icon_Necklace_Tier3.png","Equipment_Icon_Necklace_Tier4.png","Equipment_Icon_Necklace_Tier5.png","Equipment_Icon_Necklace_Tier6.png","Equipment_Icon_Necklace_Tier7.png","Equipment_Icon_Necklace_Tier8.png","Equipment_Icon_Necklace_Tier9.png","Equipment_Icon_Necklace_Tier10.png"],
+        };
+        const BASE_IMG = "https://raw.githubusercontent.com/GuestGhost/Blue-Archive-Img/refs/heads/main/images";
+        const modalIconFile = MODAL_ICON_MAP[drop.category] && MODAL_ICON_MAP[drop.category][drop.tier - 1];
+        if (modalIconFile) {
+            const mimg = document.createElement('img');
+            mimg.src = `${BASE_IMG}/${modalIconFile}`;
+            mimg.alt = drop.name; mimg.className = 'modal-item-icon'; mimg.loading = 'lazy';
+            nd.appendChild(mimg);
+        }
+        const ndText = document.createElement('div');
+        ndText.innerHTML = `<span>${drop.name}</span><small>드롭률 ${drop.rate}% ${drop.m>1?`(x${drop.m}배)`:''} · 보유: ${cc}개</small>`;
+        nd.appendChild(ndText);
+        const inp = document.createElement('input');
+        inp.type='number'; inp.className='modal-item-input'; inp.value='0'; inp.min='0';
+        inp.setAttribute('data-item-id', drop.id);
+        const fin = document.createElement('span'); fin.className='modal-item-final'; fin.textContent=`→ ${cc}개`;
+        inp.addEventListener('input', () => { fin.textContent = `→ ${cc + Math.max(parseInt(inp.value)||0,0)}개`; });
+        row.appendChild(nd); row.appendChild(inp); row.appendChild(fin);
+        frag.appendChild(row);
+    });
+
+    if (isH) {
+        const hd = document.createElement('div'); hd.className = 'hard-selector-modal';
+        if (remainingHard > 0) {
+            hd.innerHTML = `<span>🔁 소탕 횟수 (남은 ${remainingHard}회)</span>
+                <select id="modalHardTimes">${Array.from({length:remainingHard},(_,i)=>`<option value="${i+1}" ${i+1===remainingHard?'selected':''}>${i+1}회</option>`).join('')}</select>`;
+        } else {
+            hd.style.background = '#FEE2E2'; hd.style.borderColor = '#F5B8BE';
+            hd.textContent = '⚠️ 오늘 하드 소탕 횟수를 모두 사용했습니다.';
+        }
+        frag.appendChild(hd);
+    }
+
+    modalBody.innerHTML = ''; modalBody.appendChild(frag);
+    document.getElementById('quantityModal').classList.add('active');
+}
+
+/* ━━━ 모달: 닫기 ━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function closeModal() {
+    document.getElementById('quantityModal').classList.remove('active');
+    activeModalInfo = null;
+}
+
+/* ━━━ 모달: 반영 ━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function confirmModal() {
+    if (!activeModalInfo) return;
+    const { loc, isH, remainingHard } = activeModalInfo;
+    const inv = JSON.parse(localStorage.getItem('ba_inv_data') || '{}');
+    document.querySelectorAll('#modalBody .modal-item-input').forEach(inp => {
+        const addQty = Math.max(parseInt(inp.value)||0, 0);
+        if (addQty > 0) inv[inp.getAttribute('data-item-id')] = (inv[inp.getAttribute('data-item-id')]||0) + addQty;
+    });
+    const hData = JSON.parse(localStorage.getItem('ba_hard_count') || '{}');
+    if (isH && remainingHard > 0) {
+        const ts = document.getElementById('modalHardTimes');
+        if (ts) hData[loc] = (hData[loc]||0) + parseInt(ts.value);
+    }
+    localStorage.setItem('ba_inv_data', JSON.stringify(inv));
+    localStorage.setItem('ba_hard_count', JSON.stringify(hData));
+    Object.entries(inv).forEach(([k,v]) => { const el = document.getElementById(k); if (el) el.value = v; });
+    closeModal(); runAnalysis();
+    showToast('✅ 반영 완료! 분석 결과가 갱신되었습니다.', 'success');
+}
+</script>
+</body>
+</html>
