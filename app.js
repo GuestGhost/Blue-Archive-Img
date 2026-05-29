@@ -2,6 +2,18 @@
 const API_URL = "https://script.google.com/macros/s/AKfycbxHeNYJBcw-Iy0gUCx9uBpXLXyEqgIsDhxXNur-Yl1PXR-JtpH8FevIrDaUXYXzG2H7gA/exec";
 const CATEGORIES = { "Hat":"모자","Gloves":"장갑","Shoes":"신발","Bag":"가방","Badge":"배지","Hairpin":"헤어핀","Charm":"부적","Watch":"손목시계","Necklace":"목걸이" };
 const CATEGORY_ORDER = ["Hat","Gloves","Shoes","Bag","Badge","Hairpin","Charm","Watch","Necklace"];
+const BASE_IMG = "https://raw.githubusercontent.com/GuestGhost/Blue-Archive-Img/refs/heads/main/images";
+const ICON_MAP = {
+    Hat:     Array.from({length:10}, (_,i) => `Equipment_Icon_Hat_Tier${i+1}.png`),
+    Gloves:  Array.from({length:10}, (_,i) => `Equipment_Icon_Gloves_Tier${i+1}.png`),
+    Shoes:   Array.from({length:10}, (_,i) => `Equipment_Icon_Shoes_Tier${i+1}.png`),
+    Bag:     Array.from({length:10}, (_,i) => `Equipment_Icon_Bag_Tier${i+1}.png`),
+    Badge:   Array.from({length:10}, (_,i) => `Equipment_Icon_Badge_Tier${i+1}.png`),
+    Hairpin: Array.from({length:10}, (_,i) => `Equipment_Icon_Hairpin_Tier${i+1}.png`),
+    Charm:   Array.from({length:10}, (_,i) => `Equipment_Icon_Charm_Tier${i+1}.png`),
+    Watch:   Array.from({length:10}, (_,i) => `Equipment_Icon_Watch_Tier${i+1}.png`),
+    Necklace:Array.from({length:10}, (_,i) => `Equipment_Icon_Necklace_Tier${i+1}.png`),
+};
 
 /* ━━━ 상태 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 let GLOBAL_RAW_DATA = [];
@@ -112,7 +124,40 @@ function drawInventory() {
     const root  = document.getElementById('inventory-ui');
     const saved = JSON.parse(localStorage.getItem('ba_inv_data') || '{}');
     const frag  = document.createDocumentFragment();
-    Object.keys(CATEGORIES).forEach(cat => {
+
+    // ── T1 장비 모음 (최상단, 설계도 불필요) ──
+    const t1Group = document.createElement('div');
+    t1Group.className = 'item-group';
+    const t1Hdr = document.createElement('div');
+    t1Hdr.className = 'item-group-header';
+    t1Hdr.innerHTML = `<div class="item-group-dot"></div><span class="item-group-name">T1 장비 (공통)</span>`;
+    t1Group.appendChild(t1Hdr);
+    const t1Grid = document.createElement('div');
+    t1Grid.className = 'item-grid';
+    CATEGORY_ORDER.forEach(cat => {
+        const k = `${cat}_T1`;
+        const wrap = document.createElement('div');
+        wrap.className = 'item-input';
+        const iconFile = ICON_MAP[cat][0];
+        if (iconFile) {
+            const img = document.createElement('img');
+            img.src = `${BASE_IMG}/${iconFile}`;
+            img.alt = 'T1'; img.className = 'item-icon'; img.loading = 'lazy';
+            wrap.appendChild(img);
+        }
+        const lbl = document.createElement('label');
+        lbl.textContent = CATEGORIES[cat]; lbl.htmlFor = k;
+        const inp = document.createElement('input');
+        inp.type = 'number'; inp.id = k; inp.min = '0'; inp.value = saved[k] || 0;
+        inp.addEventListener('change', onInventoryChange);
+        wrap.appendChild(lbl); wrap.appendChild(inp);
+        t1Grid.appendChild(wrap);
+    });
+    t1Group.appendChild(t1Grid);
+    frag.appendChild(t1Group);
+
+    // ── T2~T10: 카테고리별 그룹 ──
+    CATEGORY_ORDER.forEach(cat => {
         const group = document.createElement('div');
         group.className = 'item-group';
 
@@ -123,32 +168,17 @@ function drawInventory() {
 
         const grid = document.createElement('div');
         grid.className = 'item-grid';
-        for (let t = 1; t <= 10; t++) {
+        for (let t = 2; t <= 10; t++) {
             const k = `${cat}_T${t}`;
             const wrap = document.createElement('div');
             wrap.className = 'item-input';
             const lbl = document.createElement('label');
             lbl.textContent = `T${t}`; lbl.htmlFor = k;
-            // 아이콘 이미지
-            const ICON_MAP = {
-                Hat:     ["Equipment_Icon_Hat_Tier1.png","Equipment_Icon_Hat_Tier2.png","Equipment_Icon_Hat_Tier3.png","Equipment_Icon_Hat_Tier4.png","Equipment_Icon_Hat_Tier5.png","Equipment_Icon_Hat_Tier6.png","Equipment_Icon_Hat_Tier7.png","Equipment_Icon_Hat_Tier8.png","Equipment_Icon_Hat_Tier9.png","Equipment_Icon_Hat_Tier10.png"],
-                Gloves:  ["Equipment_Icon_Gloves_Tier1.png","Equipment_Icon_Gloves_Tier2.png","Equipment_Icon_Gloves_Tier3.png","Equipment_Icon_Gloves_Tier4.png","Equipment_Icon_Gloves_Tier5.png","Equipment_Icon_Gloves_Tier6.png","Equipment_Icon_Gloves_Tier7.png","Equipment_Icon_Gloves_Tier8.png","Equipment_Icon_Gloves_Tier9.png","Equipment_Icon_Gloves_Tier10.png"],
-                Shoes:   ["Equipment_Icon_Shoes_Tier1.png","Equipment_Icon_Shoes_Tier2.png","Equipment_Icon_Shoes_Tier3.png","Equipment_Icon_Shoes_Tier4.png","Equipment_Icon_Shoes_Tier5.png","Equipment_Icon_Shoes_Tier6.png","Equipment_Icon_Shoes_Tier7.png","Equipment_Icon_Shoes_Tier8.png","Equipment_Icon_Shoes_Tier9.png","Equipment_Icon_Shoes_Tier10.png"],
-                Bag:     ["Equipment_Icon_Bag_Tier1.png","Equipment_Icon_Bag_Tier2.png","Equipment_Icon_Bag_Tier3.png","Equipment_Icon_Bag_Tier4.png","Equipment_Icon_Bag_Tier5.png","Equipment_Icon_Bag_Tier6.png","Equipment_Icon_Bag_Tier7.png","Equipment_Icon_Bag_Tier8.png","Equipment_Icon_Bag_Tier9.png","Equipment_Icon_Bag_Tier10.png"],
-                Badge:   ["Equipment_Icon_Badge_Tier1.png","Equipment_Icon_Badge_Tier2.png","Equipment_Icon_Badge_Tier3.png","Equipment_Icon_Badge_Tier4.png","Equipment_Icon_Badge_Tier5.png","Equipment_Icon_Badge_Tier6.png","Equipment_Icon_Badge_Tier7.png","Equipment_Icon_Badge_Tier8.png","Equipment_Icon_Badge_Tier9.png","Equipment_Icon_Badge_Tier10.png"],
-                Hairpin: ["Equipment_Icon_Hairpin_Tier1.png","Equipment_Icon_Hairpin_Tier2.png","Equipment_Icon_Hairpin_Tier3.png","Equipment_Icon_Hairpin_Tier4.png","Equipment_Icon_Hairpin_Tier5.png","Equipment_Icon_Hairpin_Tier6.png","Equipment_Icon_Hairpin_Tier7.png","Equipment_Icon_Hairpin_Tier8.png","Equipment_Icon_Hairpin_Tier9.png","Equipment_Icon_Hairpin_Tier10.png"],
-                Charm:   ["Equipment_Icon_Charm_Tier1.png","Equipment_Icon_Charm_Tier2.png","Equipment_Icon_Charm_Tier3.png","Equipment_Icon_Charm_Tier4.png","Equipment_Icon_Charm_Tier5.png","Equipment_Icon_Charm_Tier6.png","Equipment_Icon_Charm_Tier7.png","Equipment_Icon_Charm_Tier8.png","Equipment_Icon_Charm_Tier9.png","Equipment_Icon_Charm_Tier10.png"],
-                Watch:   ["Equipment_Icon_Watch_Tier1.png","Equipment_Icon_Watch_Tier2.png","Equipment_Icon_Watch_Tier3.png","Equipment_Icon_Watch_Tier4.png","Equipment_Icon_Watch_Tier5.png","Equipment_Icon_Watch_Tier6.png","Equipment_Icon_Watch_Tier7.png","Equipment_Icon_Watch_Tier8.png","Equipment_Icon_Watch_Tier9.png","Equipment_Icon_Watch_Tier10.png"],
-                Necklace:["Equipment_Icon_Necklace_Tier1.png","Equipment_Icon_Necklace_Tier2.png","Equipment_Icon_Necklace_Tier3.png","Equipment_Icon_Necklace_Tier4.png","Equipment_Icon_Necklace_Tier5.png","Equipment_Icon_Necklace_Tier6.png","Equipment_Icon_Necklace_Tier7.png","Equipment_Icon_Necklace_Tier8.png","Equipment_Icon_Necklace_Tier9.png","Equipment_Icon_Necklace_Tier10.png"],
-            };
-            const BASE_IMG = "https://raw.githubusercontent.com/GuestGhost/Blue-Archive-Img/refs/heads/main/images";
-            const iconFile = ICON_MAP[cat] && ICON_MAP[cat][t-1];
+            const iconFile = ICON_MAP[cat][t-1];
             if (iconFile) {
                 const img = document.createElement('img');
                 img.src = `${BASE_IMG}/${iconFile}`;
-                img.alt = `T${t}`;
-                img.className = 'item-icon';
-                img.loading = 'lazy';
+                img.alt = `T${t}`; img.className = 'item-icon'; img.loading = 'lazy';
                 wrap.appendChild(img);
             }
             const inp = document.createElement('input');
