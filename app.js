@@ -312,16 +312,32 @@ function runAnalysis() {
         const globalRange= Math.max(globalMax - globalMin, 1);
 
         const areaScores = {};
-        filteredData.forEach(item => {
+
+        // 1차: 전체 아이템으로 구역 구조 생성 + 드롭 목록 구성 (표시용)
+        GLOBAL_RAW_DATA.forEach(item => {
             const k = `${item.category}_T${item.tier}`;
             const count = inv[k] || 0;
             item.mission_drops.forEach(d => {
                 const loc = d.mission;
                 const isH = loc.includes('H');
                 if (isH && (hData[loc] || 0) >= 3) return;
-                if (!areaScores[loc]) areaScores[loc] = { drops:[], isH, ap: isH?20:10, score:0, minCount:Infinity, maxTierOfMin:0, topItemInfo:'', scoreBreakdown:[] };
+                if (!areaScores[loc]) areaScores[loc] = { drops:[], scoreDrops:[], isH, ap: isH?20:10, score:0, minCount:Infinity, maxTierOfMin:0, topItemInfo:'', scoreBreakdown:[] };
                 if (!areaScores[loc].drops.some(x => x.id === k)) {
                     areaScores[loc].drops.push({ id:k, name:`${item.tier}T ${item.name_ko}`, rate:d.rates_percent[0], m: isH?mulH:mulN, tier:item.tier, category:item.category, count });
+                }
+            });
+        });
+
+        // 2차: 배제 티어를 제외한 아이템만 점수 계산에 사용
+        filteredData.forEach(item => {
+            const k = `${item.category}_T${item.tier}`;
+            const count = inv[k] || 0;
+            item.mission_drops.forEach(d => {
+                const loc = d.mission;
+                const isH = loc.includes('H');
+                if (!areaScores[loc]) return;
+                if (!areaScores[loc].scoreDrops.some(x => x.id === k)) {
+                    areaScores[loc].scoreDrops.push({ id:k, name:`${item.tier}T ${item.name_ko}`, rate:d.rates_percent[0], m: isH?mulH:mulN, tier:item.tier, category:item.category, count });
                 }
                 if (count < areaScores[loc].minCount) { areaScores[loc].minCount = count; areaScores[loc].maxTierOfMin = item.tier; areaScores[loc].topItemInfo = `${item.tier}T ${item.name_ko} (보유: ${count})`; }
                 else if (count === areaScores[loc].minCount && item.tier > areaScores[loc].maxTierOfMin) { areaScores[loc].maxTierOfMin = item.tier; areaScores[loc].topItemInfo = `${item.tier}T ${item.name_ko} (보유: ${count})`; }
@@ -329,14 +345,14 @@ function runAnalysis() {
         });
 
         Object.entries(areaScores).forEach(([loc, info]) => {
-            if (!info.drops.length) return;
-            const counts = info.drops.map(d => d.count);
-            const areaAvg = counts.reduce((a,b) => a+b, 0) / counts.length;
-            const variance = counts.reduce((s,c) => s + Math.pow(c-areaAvg,2), 0) / counts.length;
+            if (!info.scoreDrops.length) return; // 점수 계산 가능한 아이템 없으면 skip
+            const scoreCounts = info.scoreDrops.map(d => d.count);
+            const areaAvg = scoreCounts.reduce((a,b) => a+b, 0) / scoreCounts.length;
+            const variance = scoreCounts.reduce((s,c) => s + Math.pow(c-areaAvg,2), 0) / scoreCounts.length;
             const stdDev = Math.sqrt(variance);
             const spreadPenalty = Math.min(stdDev / (globalRange*0.5+1), 0.5);
             let totalScore = 0;
-            info.drops.forEach(drop => {
+            info.scoreDrops.forEach(drop => {
                 const c = drop.count, t = drop.tier;
                 const expQty = (drop.rate/100) * drop.m;
                 const needRatio = 1 - (c-globalMin)/(globalRange+1);
@@ -349,7 +365,7 @@ function runAnalysis() {
             info.score = totalScore * (1-spreadPenalty);
             info.remainingHard = Math.max(3-(hData[loc]||0), 0);
             info._debug = {
-                areaMin:Math.min(...counts), areaMax:Math.max(...counts),
+                areaMin:Math.min(...scoreCounts), areaMax:Math.max(...scoreCounts),
                 areaAvg:areaAvg.toFixed(1), stdDev:stdDev.toFixed(1),
                 spreadPenalty:spreadPenalty.toFixed(2), rawScore:totalScore.toFixed(3), finalScore:info.score.toFixed(3)
             };
