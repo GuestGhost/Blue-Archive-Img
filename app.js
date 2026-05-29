@@ -490,7 +490,6 @@ function confirmModal() {
    화면 인식
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 let _scStream = null;
-let _scWorker = null;
 const _scIcons = {};
 let _scIconsLoaded = false;
 const SC_MATCH_SIZE = 32;
@@ -534,16 +533,6 @@ async function scLoadIcons() {
     _scIconsLoaded = true;
 }
 
-async function scInitWorker() {
-    if (_scWorker) return;
-    try {
-        _scWorker = await Tesseract.createWorker('eng', 1, { logger: () => {} });
-        await _scWorker.setParameters({
-            tessedit_char_whitelist: 'xXTtKk0123456789',
-            tessedit_pageseg_mode: '7',
-        });
-    } catch(e) { console.warn('[SC] Tesseract init failed', e); }
-}
 
 function scPixelDiff(a, b) {
     let d = 0;
@@ -628,7 +617,6 @@ async function startScreenCapture() {
         _scStream.getVideoTracks()[0].addEventListener('ended', stopScreenCapture);
         showToast('게임 장비 목록 화면으로 이동 후 [캡처 & 분석]을 누르세요.', 'info', 4000);
         scLoadIcons();
-        scInitWorker();
     } catch(e) {
         if (e.name !== 'NotAllowedError' && e.name !== 'AbortError')
             showToast('화면 공유 오류: ' + e.message, 'error');
@@ -707,7 +695,6 @@ async function scProcessGrid(x1, y1, x2, y2) {
     const srcCtx = srcCanvas.getContext('2d', { willReadFrequently: true });
     try {
         await scLoadIcons();
-        await scInitWorker();
 
         const cols  = 5;
         const cellW = (x2 - x1) / cols;
@@ -752,12 +739,14 @@ async function scProcessGrid(x1, y1, x2, y2) {
                 oCtx.putImageData(imgData, 0, 0);
 
                 let qty = null;
-                if (_scWorker) {
-                    try {
-                        const { data: { text } } = await _scWorker.recognize(tmpOcr);
-                        qty = scParseQty(text);
-                    } catch(e) { console.warn('[SC OCR]', e); }
-                }
+                try {
+                    const { data: { text } } = await Tesseract.recognize(tmpOcr, 'eng', {
+                        logger: () => {},
+                        tessedit_char_whitelist: 'xXTtKk0123456789',
+                        tessedit_pageseg_mode: '7',
+                    });
+                    qty = scParseQty(text);
+                } catch(e) { console.warn('[SC OCR]', e); }
                 if (qty === null) continue;
 
                 const [cat, tierStr] = match.key.split('_');
