@@ -839,7 +839,35 @@ body {
 .toast.error   { background: linear-gradient(135deg, var(--ba-red), #C04050); }
 .toast.info    { background: linear-gradient(135deg, var(--ba-sky), var(--ba-sky-dk)); }
 .toast.warning { background: linear-gradient(135deg, #F5C842, #D4A020); color: #2A1A00; }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   화면 인식
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.sc-card {
+  background: var(--ba-white);
+  border-radius: 16px;
+  border: 1.5px solid var(--ba-border);
+  padding: 18px 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(91,184,245,0.08);
+}
+.sc-intro {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.sc-intro-text {
+  flex: 1;
+  font-size: 13px;
+  color: var(--ba-text-sub);
+  font-weight: 600;
+  line-height: 1.7;
+  min-width: 200px;
+}
+.sc-intro-text a { color: var(--ba-sky-dk); }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 </head>
 <body>
 
