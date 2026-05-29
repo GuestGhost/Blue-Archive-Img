@@ -487,81 +487,92 @@ function confirmModal() {
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   화면 인식
+   화면 인식 (OpenCV.js + Tesseract worker)
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-let _scStream = null;
-const _scIcons = {};
-let _scIconsLoaded = false;
-const SC_MATCH_SIZE = 32;
-const SC_BASE = "https://raw.githubusercontent.com/GuestGhost/Blue-Archive-Img/refs/heads/main/images";
-const SC_ICON_FILES = {
-    Hat:     Array.from({length:10},(_,i)=>`Equipment_Icon_Hat_Tier${i+1}.png`),
-    Gloves:  Array.from({length:10},(_,i)=>`Equipment_Icon_Gloves_Tier${i+1}.png`),
-    Shoes:   Array.from({length:10},(_,i)=>`Equipment_Icon_Shoes_Tier${i+1}.png`),
-    Bag:     Array.from({length:10},(_,i)=>`Equipment_Icon_Bag_Tier${i+1}.png`),
-    Badge:   Array.from({length:10},(_,i)=>`Equipment_Icon_Badge_Tier${i+1}.png`),
-    Hairpin: Array.from({length:10},(_,i)=>`Equipment_Icon_Hairpin_Tier${i+1}.png`),
-    Charm:   Array.from({length:10},(_,i)=>`Equipment_Icon_Charm_Tier${i+1}.png`),
-    Watch:   Array.from({length:10},(_,i)=>`Equipment_Icon_Watch_Tier${i+1}.png`),
-    Necklace:Array.from({length:10},(_,i)=>`Equipment_Icon_Necklace_Tier${i+1}.png`),
-};
+let _scStream   = null;
+let _scWorker   = null;
+let _scWorkerReady = false;
+let _cvReady    = false;
 
-async function scLoadIcons() {
-    if (_scIconsLoaded) return;
-    const tmp = document.createElement('canvas');
-    tmp.width = tmp.height = SC_MATCH_SIZE;
-    const ctx = tmp.getContext('2d', { willReadFrequently: true });
-    const tasks = [];
-    for (const [cat, files] of Object.entries(SC_ICON_FILES)) {
-        for (let t = 1; t <= 10; t++) {
-            const key = `${cat}_T${t}`;
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            img.src = `${SC_BASE}/${files[t-1]}`;
-            tasks.push(new Promise(resolve => {
-                img.onload = () => {
-                    ctx.clearRect(0, 0, SC_MATCH_SIZE, SC_MATCH_SIZE);
-                    ctx.drawImage(img, 0, 0, SC_MATCH_SIZE, SC_MATCH_SIZE);
-                    _scIcons[key] = Array.from(ctx.getImageData(0, 0, SC_MATCH_SIZE, SC_MATCH_SIZE).data);
-                    resolve();
-                };
-                img.onerror = () => resolve();
-            }));
+// OpenCV 로드 완료 감지
+(function waitCV() {
+    if (typeof cv !== 'undefined' && cv.Mat) { _cvReady = true; return; }
+    const t = setInterval(() => {
+        if (typeof cv !== 'undefined') {
+            clearInterval(t);
+            if (cv.Mat) { _cvReady = true; }
+            else { cv['onRuntimeInitialized'] = () => { _cvReady = true; }; }
         }
+    }, 300);
+})();
+
+async function scInitWorker() {
+    if (_scWorkerReady) return true;
+    try {
+        _scWorker = Tesseract.createWorker({ logger: () => {} });
+        await _scWorker.load();
+        await _scWorker.loadLanguage('eng');
+        await _scWorker.initialize('eng');
+        await _scWorker.setParameters({
+            tessedit_char_whitelist: '0123456789xXkK',
+            tessedit_pageseg_mode: '7',
+        });
+        _scWorkerReady = true;
+        return true;
+    } catch(e) {
+        console.warn('[Tesseract worker]', e);
+        _scWorker = null;
+        return false;
     }
-    await Promise.all(tasks);
-    _scIconsLoaded = true;
-}
-
-
-function scPixelDiff(a, b) {
-    let d = 0;
-    for (let i = 0; i < a.length; i += 4)
-        d += Math.abs(a[i]-b[i]) + Math.abs(a[i+1]-b[i+1]) + Math.abs(a[i+2]-b[i+2]);
-    return d / (a.length / 4 * 3);
-}
-
-function scMatchIcon(srcCanvas, x, y, w, h) {
-    const tmp = document.createElement('canvas');
-    tmp.width = tmp.height = SC_MATCH_SIZE;
-    const ctx = tmp.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(srcCanvas, x, y, w, h, 0, 0, SC_MATCH_SIZE, SC_MATCH_SIZE);
-    const cellData = Array.from(ctx.getImageData(0, 0, SC_MATCH_SIZE, SC_MATCH_SIZE).data);
-    let best = { key: null, diff: Infinity };
-    for (const [key, refData] of Object.entries(_scIcons)) {
-        const d = scPixelDiff(cellData, refData);
-        if (d < best.diff) best = { key, diff: d };
-    }
-    return best;
 }
 
 function scParseQty(text) {
-    const m = text.replace(/\s/g,'').match(/[xX](\d[\d,.]*)\s*([Kk])?/);
+    const clean = text.replace(/\s/g, '');
+    // x1070 / X14K / 1070 / 14K 등 처리
+    const m = clean.match(/[xX]?(\d[\d,.]*)([Kk])?/);
     if (!m) return null;
-    let n = parseFloat(m[1].replace(/,/g,''));
-    if (isNaN(n)) return null;
+    let n = parseFloat(m[1].replace(/,/g, ''));
+    if (isNaN(n) || n <= 0) return null;
     if (m[2]) n *= 1000;
     return Math.round(n);
+}
+
+// OpenCV로 열 수 자동 감지, 실패 시 5 반환
+function scDetectCols(srcCanvas, x1, y1, x2, y2) {
+    if (!_cvReady || typeof cv === 'undefined' || !cv.Mat) return 5;
+    try {
+        const w = Math.round(x2 - x1);
+        const h = Math.round(y2 - y1);
+        const tmp = document.createElement('canvas');
+        tmp.width = w; tmp.height = h;
+        tmp.getContext('2d').drawImage(srcCanvas, Math.round(x1), Math.round(y1), w, h, 0, 0, w, h);
+
+        const src  = cv.imread(tmp);
+        const gray = new cv.Mat();
+        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+        // 수직 방향 평균 투영 → 열 경계(어두운 골) 탐지
+        const proj = new cv.Mat();
+        cv.reduce(gray, proj, 0, cv.REDUCE_AVG, cv.CV_32F);
+        const data = proj.data32F;
+
+        let valleys = 0;
+        const minGap = Math.floor(w / 10);
+        let lastValley = -minGap;
+        for (let i = 2; i < data.length - 2; i++) {
+            if (data[i] < data[i-1] - 8 && data[i] < data[i+1] - 8 && i - lastValley > minGap) {
+                valleys++;
+                lastValley = i;
+            }
+        }
+
+        src.delete(); gray.delete(); proj.delete();
+        const detected = valleys + 1;
+        return (detected >= 3 && detected <= 8) ? detected : 5;
+    } catch(e) {
+        console.warn('[CV cols]', e);
+        return 5;
+    }
 }
 
 /* 셀 높이 자동 측정 — 티어 뱃지(진한 파란 원) 위치 기반 */
@@ -616,7 +627,7 @@ async function startScreenCapture() {
         document.getElementById('sc-live').style.display = 'block';
         _scStream.getVideoTracks()[0].addEventListener('ended', stopScreenCapture);
         showToast('게임 장비 목록 화면으로 이동 후 [캡처 & 분석]을 누르세요.', 'info', 4000);
-        scLoadIcons();
+        scInitWorker(); // 백그라운드에서 Tesseract 워커 준비
     } catch(e) {
         if (e.name !== 'NotAllowedError' && e.name !== 'AbortError')
             showToast('화면 공유 오류: ' + e.message, 'error');
@@ -692,68 +703,71 @@ function scInitDrag(dc) {
 async function scProcessGrid(x1, y1, x2, y2) {
     setLoading(true);
     const srcCanvas = document.getElementById('sc-canvas');
-    const srcCtx = srcCanvas.getContext('2d', { willReadFrequently: true });
+    const srcCtx    = srcCanvas.getContext('2d', { willReadFrequently: true });
     try {
-        await scLoadIcons();
-
-        const cols  = 5;
+        const workerOk = await scInitWorker();
+        const cols  = scDetectCols(srcCanvas, x1, y1, x2, y2);
         const cellW = (x2 - x1) / cols;
-        // 해상도 독립: 뱃지 위치로 셀 높이 자동 측정
         const cellH = scMeasureCellHeight(srcCtx, x1, y1, x2, y2, cellW);
         const rows  = Math.max(1, Math.round((y2 - y1) / cellH));
 
+        console.log(`[SC] grid ${rows}행 × ${cols}열  cell ${cellW.toFixed(0)}×${cellH.toFixed(0)}`);
+
         const detected = [];
         const tmpOcr   = document.createElement('canvas');
+        const tmpThumb = document.createElement('canvas');
 
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
-                const cx = x1 + c * cellW;
-                const cy = y1 + r * cellH;
-                if (cx + cellW > srcCanvas.width || cy + cellH > srcCanvas.height) continue;
+                const cx = Math.round(x1 + c * cellW);
+                const cy = Math.round(y1 + r * cellH);
+                const cw = Math.round(cellW);
+                const ch = Math.round(cellH);
+                if (cx + cw > srcCanvas.width || cy + ch > srcCanvas.height) continue;
 
-                // 아이콘 영역: 셀 상단 60%, 좌우 10% 여백
-                const im   = cellW * 0.10;
-                const match = scMatchIcon(srcCanvas, cx+im, cy+im, cellW-im*2, cellH*0.60);
-                console.log(`[SC] r${r}c${c} match=${match.key} diff=${match.diff?.toFixed(1)}`);
-                if (!match.key || match.diff > 95) continue;
+                // 슬롯 썸네일
+                tmpThumb.width = 52; tmpThumb.height = 52;
+                tmpThumb.getContext('2d').drawImage(srcCanvas, cx, cy, cw, ch, 0, 0, 52, 52);
+                const thumbURL = tmpThumb.toDataURL('image/jpeg', 0.75);
 
-                // 수량 OCR: 셀 하단 31%, 오른쪽 61% (뱃지 오른쪽 영역)
-                const qx = Math.round(cx + cellW * 0.37);
-                const qy = Math.round(cy + cellH * 0.67);
-                const qw = Math.round(cellW * 0.61);
-                const qh = Math.round(cellH * 0.31);
-                const S  = 3; // 업스케일 배율
+                // 수량 OCR 영역: 하단 30%, 우측 62%
+                const qx = cx + Math.round(cw * 0.36);
+                const qy = cy + Math.round(ch * 0.67);
+                const qw = Math.round(cw * 0.62);
+                const qh = Math.round(ch * 0.30);
+                const S  = 3;
                 tmpOcr.width  = qw * S;
                 tmpOcr.height = qh * S;
+
                 const oCtx = tmpOcr.getContext('2d', { willReadFrequently: true });
                 oCtx.fillStyle = '#fff';
                 oCtx.fillRect(0, 0, tmpOcr.width, tmpOcr.height);
                 oCtx.drawImage(srcCanvas, qx, qy, qw, qh, 0, 0, tmpOcr.width, tmpOcr.height);
 
-                // 대비 강화 (이진화 - 흰 글씨→검정, 배경→흰색으로 반전)
-                const imgData = oCtx.getImageData(0, 0, tmpOcr.width, tmpOcr.height);
-                for (let i = 0; i < imgData.data.length; i += 4) {
-                    const avg = (imgData.data[i] + imgData.data[i+1] + imgData.data[i+2]) / 3;
-                    // 밝은 픽셀(글씨)=검정, 어두운 픽셀(배경)=흰색 → Tesseract 최적화
+                // 이진화: 밝은 글씨(흰색) → 검정, 어두운 배경 → 흰색
+                const id = oCtx.getImageData(0, 0, tmpOcr.width, tmpOcr.height);
+                for (let i = 0; i < id.data.length; i += 4) {
+                    const avg = (id.data[i] + id.data[i+1] + id.data[i+2]) / 3;
                     const v = avg > 140 ? 0 : 255;
-                    imgData.data[i] = imgData.data[i+1] = imgData.data[i+2] = v;
+                    id.data[i] = id.data[i+1] = id.data[i+2] = v;
                 }
-                oCtx.putImageData(imgData, 0, 0);
+                oCtx.putImageData(id, 0, 0);
 
-                let qty = null;
+                let qty = 0;
                 try {
-                    const result = await Tesseract.recognize(tmpOcr, 'eng', {
-                        logger: () => {},
-                        tessedit_char_whitelist: 'xXKk0123456789',
-                        tessedit_pageseg_mode: '7', // PSM.SINGLE_LINE
-                    });
-                    qty = scParseQty(result.data?.text ?? result.text ?? '');
-                    console.log('[SC OCR raw]', result.data?.text ?? result.text);
+                    if (workerOk && _scWorker) {
+                        const { data: { text } } = await _scWorker.recognize(tmpOcr);
+                        console.log(`[SC OCR] r${r}c${c} "${text.trim()}"`);
+                        qty = scParseQty(text) ?? 0;
+                    } else {
+                        const res = await Tesseract.recognize(tmpOcr, 'eng', { logger: () => {} });
+                        const text = res.data?.text ?? res.text ?? '';
+                        console.log(`[SC OCR fallback] r${r}c${c} "${text.trim()}"`);
+                        qty = scParseQty(text) ?? 0;
+                    }
                 } catch(e) { console.warn('[SC OCR]', e); }
-                if (qty === null) continue;
 
-                const [cat, tierStr] = match.key.split('_');
-                detected.push({ key: match.key, cat, tier: parseInt(tierStr.slice(1)), qty });
+                detected.push({ r, c, thumb: thumbURL, qty, key: '' });
             }
         }
         scRenderResults(detected);
@@ -765,70 +779,90 @@ async function scProcessGrid(x1, y1, x2, y2) {
     }
 }
 
+function scEquipOptions(selectedKey) {
+    let html = '<option value="">-- 장비 선택 --</option>';
+    for (const cat of CATEGORY_ORDER) {
+        html += `<optgroup label="${CATEGORIES[cat]}">`;
+        for (let t = 1; t <= 10; t++) {
+            const key = `${cat}_T${t}`;
+            html += `<option value="${key}"${key === selectedKey ? ' selected' : ''}>${CATEGORIES[cat]} T${t}</option>`;
+        }
+        html += '</optgroup>';
+    }
+    return html;
+}
+
 function scRenderResults(items) {
     const el = document.getElementById('sc-result');
     if (!items.length) {
-        el.innerHTML = `
-          <div style="text-align:center;padding:20px;color:var(--ba-red);font-weight:700;line-height:2">
-            ⚠️ 인식된 장비가 없습니다.<br>
+        el.innerHTML = `<div style="text-align:center;padding:20px;color:var(--ba-red);font-weight:700;line-height:2">
+            ⚠️ 슬롯을 감지하지 못했습니다.<br>
             <span style="color:var(--ba-text-sub);font-size:12px;font-weight:600">
-              장비 목록 화면인지 확인하고, 아이콘 전체가 포함되도록 선택하세요.
-            </span>
-          </div>`;
+              장비 목록 화면인지 확인하고, 아이콘 전체가 포함되도록 드래그하세요.
+            </span></div>`;
         el.style.display = 'block';
         return;
     }
-    const rows = items.map(item => `
+
+    const rowsHtml = items.map((item, idx) => `
       <tr style="border-bottom:1px solid var(--ba-paper2)">
-        <td style="padding:7px 10px">
-          <img src="${SC_BASE}/${SC_ICON_FILES[item.cat][item.tier-1]}"
-            style="width:36px;height:28px;object-fit:contain;border-radius:4px;background:rgba(91,184,245,0.07);border:1px solid var(--ba-border);padding:2px;display:block">
+        <td style="padding:6px 8px;width:58px">
+          <img src="${item.thumb}" style="width:50px;height:50px;object-fit:cover;border-radius:7px;border:1.5px solid var(--ba-border);display:block">
         </td>
-        <td style="padding:7px 10px;font-weight:700;font-size:13px;color:var(--ba-navy)">
-          ${CATEGORIES[item.cat]} T${item.tier}
+        <td style="padding:6px 8px">
+          <select data-sc-idx="${idx}"
+            style="width:100%;padding:5px 6px;border:1.5px solid var(--ba-border);border-radius:8px;font-size:12px;font-weight:700;color:var(--ba-navy);background:var(--ba-paper2);outline:none">
+            ${scEquipOptions(item.key)}
+          </select>
         </td>
-        <td style="padding:7px 10px">
-          <input type="number" min="0" value="${item.qty}" data-sc-key="${item.key}"
-            style="width:90px;padding:6px 8px;border:1.5px solid var(--ba-border);border-radius:8px;font-weight:800;font-size:13px;text-align:center;font-family:'Rajdhani',sans-serif;color:var(--ba-sky-dk);outline:none">
+        <td style="padding:6px 8px;width:90px">
+          <input type="number" min="0" value="${item.qty}" data-sc-qty="${idx}"
+            style="width:82px;padding:6px 8px;border:1.5px solid var(--ba-border);border-radius:8px;font-weight:800;font-size:13px;text-align:center;font-family:'Rajdhani',sans-serif;color:var(--ba-sky-dk);outline:none">
         </td>
       </tr>`).join('');
+
     el.innerHTML = `
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
         <span style="font-size:13px;font-weight:800;color:var(--ba-navy)">📋 인식 결과</span>
-        <span style="font-size:12px;color:var(--ba-text-sub);font-weight:600">${items.length}개 · 수정 후 반영 가능</span>
+        <span style="font-size:12px;color:var(--ba-text-sub);font-weight:600">${items.length}개 슬롯 · 장비를 선택하고 수량을 확인 후 반영하세요</span>
       </div>
-      <div style="border:1.5px solid var(--ba-border);border-radius:12px;overflow:hidden">
+      <div style="border:1.5px solid var(--ba-border);border-radius:12px;overflow:hidden;margin-bottom:12px">
         <table style="width:100%;border-collapse:collapse">
           <thead style="background:var(--ba-paper2)">
             <tr>
-              <th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--ba-text-sub);font-weight:700">아이콘</th>
-              <th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--ba-text-sub);font-weight:700">아이템</th>
-              <th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--ba-text-sub);font-weight:700">인식 수량</th>
+              <th style="padding:7px 8px;text-align:left;font-size:11px;color:var(--ba-text-sub);font-weight:700">화면</th>
+              <th style="padding:7px 8px;text-align:left;font-size:11px;color:var(--ba-text-sub);font-weight:700">장비 선택</th>
+              <th style="padding:7px 8px;text-align:left;font-size:11px;color:var(--ba-text-sub);font-weight:700">수량</th>
             </tr>
           </thead>
-          <tbody>${rows}</tbody>
+          <tbody>${rowsHtml}</tbody>
         </table>
       </div>
-      <button class="ba-btn ba-btn-primary" style="margin-top:12px;width:100%;padding:13px;border-radius:12px" onclick="scApply()">
+      <button class="ba-btn ba-btn-primary" style="width:100%;padding:13px;border-radius:12px" onclick="scApply()">
         ✅ 인벤토리에 반영
       </button>`;
     el.style.display = 'block';
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function scApply() {
     const inv = JSON.parse(localStorage.getItem('ba_inv_data') || '{}');
-    let count = 0;
-    document.querySelectorAll('#sc-result input[data-sc-key]').forEach(inp => {
-        const key = inp.getAttribute('data-sc-key');
-        const val = Math.max(parseInt(inp.value) || 0, 0);
+    let count = 0, skipped = 0;
+    document.querySelectorAll('#sc-result select[data-sc-idx]').forEach(sel => {
+        const idx = sel.getAttribute('data-sc-idx');
+        const key = sel.value;
+        const qtyEl = document.querySelector(`#sc-result input[data-sc-qty="${idx}"]`);
+        if (!key || !qtyEl) { skipped++; return; }
+        const val = Math.max(parseInt(qtyEl.value) || 0, 0);
         inv[key] = val;
-        const el = document.getElementById(key);
-        if (el) el.value = val;
+        const invEl = document.getElementById(key);
+        if (invEl) invEl.value = val;
         count++;
     });
     localStorage.setItem('ba_inv_data', JSON.stringify(inv));
-    document.getElementById('stale-notice').style.display = 'flex';
-    showToast(`✅ ${count}개 항목이 인벤토리에 반영되었습니다!`, 'success');
+    if (count > 0) document.getElementById('stale-notice').style.display = 'flex';
+    const msg = `✅ ${count}개 반영 완료` + (skipped ? ` (${skipped}개 장비 미선택 건너뜀)` : '');
+    showToast(msg, count ? 'success' : 'warning');
 }
 
 /* ━━━ iframe 높이 자동 전달 ━━━━━━━━━━━━━━━━━ */
