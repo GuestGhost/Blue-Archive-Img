@@ -82,6 +82,13 @@
       <div id="inventory-ui"></div>
     </div>
 
+    <!-- 수량 상한 설정 -->
+    <div class="cap-wrap">
+      <label class="cap-label" for="invCap">📊 보유 수량 상한</label>
+      <input class="cap-input" type="number" id="invCap" min="0" placeholder="0 = 제한 없음" value="0">
+      <span class="cap-desc">초과 시 이 값으로 인식 · 0이면 그대로</span>
+    </div>
+
     <!-- 분석 버튼 -->
     <div class="btn-calc-wrap">
       <button class="btn-calc" onclick="runAnalysis()">최적 파밍 구역 분석 시작</button>

@@ -334,6 +334,42 @@ body {
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    분석 버튼
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.cap-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 16px 0 4px;
+  padding: 12px 16px;
+  background: var(--ba-paper2);
+  border: 1.5px solid var(--ba-border);
+  border-radius: 12px;
+}
+.cap-label {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ba-navy);
+  white-space: nowrap;
+}
+.cap-input {
+  width: 110px;
+  padding: 6px 10px;
+  border: 1.5px solid var(--ba-border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 800;
+  font-family: 'Rajdhani', sans-serif;
+  color: var(--ba-sky-dk);
+  background: var(--ba-white);
+  text-align: center;
+  outline: none;
+}
+.cap-input:focus { border-color: var(--ba-sky); }
+.cap-desc {
+  font-size: 12px;
+  color: var(--ba-text-sub);
+  font-weight: 600;
+}
 .btn-calc-wrap { margin: 20px 0; }
 .btn-calc {
   width: 100%;

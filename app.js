@@ -63,6 +63,8 @@ window.addEventListener('load', () => {
     const savedCode = localStorage.getItem('ba_friend_code');
     if (savedCode) document.getElementById('friendCode').value = savedCode;
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+    const savedCap = localStorage.getItem('ba_inv_cap');
+    if (savedCap) { const el = document.getElementById('invCap'); if (el) el.value = savedCap; }
     checkHardReset();
 
     const toggleBtn  = document.getElementById('toggleInventoryBtn');
@@ -236,9 +238,26 @@ function onMulChange() {
 }
 
 /* ━━━ 분석 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function getInvCap() {
+    const el = document.getElementById('invCap');
+    const v  = el ? Math.max(0, parseInt(el.value) || 0) : 0;
+    if (v > 0) localStorage.setItem('ba_inv_cap', String(v));
+    else localStorage.removeItem('ba_inv_cap');
+    return v;
+}
+
+function applyInvCap(raw, cap) {
+    if (!cap) return raw;
+    const capped = {};
+    Object.entries(raw).forEach(([k, v]) => { capped[k] = Math.min(v, cap); });
+    return capped;
+}
+
 function runAnalysis() {
-    const inv   = JSON.parse(localStorage.getItem('ba_inv_data') || '{}');
-    const hData = JSON.parse(localStorage.getItem('ba_hard_count') || '{}');
+    const rawInv = JSON.parse(localStorage.getItem('ba_inv_data') || '{}');
+    const cap    = getInvCap();
+    const inv    = applyInvCap(rawInv, cap);
+    const hData  = JSON.parse(localStorage.getItem('ba_hard_count') || '{}');
     const { mulN, mulH } = getMultipliers();
     document.getElementById('stale-notice').style.display = 'none';
     const area = document.getElementById('results-area');
