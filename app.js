@@ -613,7 +613,42 @@ function scMeasureCellHeight(ctx, x1, y1, x2, y2, cellW) {
     return gaps[Math.floor(gaps.length / 2)]; // 중앙값
 }
 
-async function startScreenCapture() {
+/* 수량 텍스트 자동 탐지: 지정 영역 내 밝은 픽셀 bbox 반환 */
+function scFindTextBounds(srcCanvas, rx, ry, rw, rh) {
+    const ctx = srcCanvas.getContext('2d', { willReadFrequently: true });
+    const id  = ctx.getImageData(Math.round(rx), Math.round(ry), Math.round(rw), Math.round(rh));
+    const d   = id.data;
+
+    // 영역 평균 밝기 → 적응형 임계값 (텍스트는 배경보다 밝음)
+    let sum = 0;
+    for (let i = 0; i < d.length; i += 4) sum += (d[i] + d[i+1] + d[i+2]) / 3;
+    const avg = sum / (d.length / 4);
+    const thr = Math.min(220, Math.max(160, avg + 45));
+
+    let minX = rw, maxX = 0, minY = rh, maxY = 0, found = false;
+    for (let y = 0; y < Math.round(rh); y++) {
+        for (let x = 0; x < Math.round(rw); x++) {
+            const i = (y * Math.round(rw) + x) * 4;
+            if ((d[i] + d[i+1] + d[i+2]) / 3 >= thr) {
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+                found = true;
+            }
+        }
+    }
+    if (!found || maxX - minX < 5 || maxY - minY < 3) return null;
+    const pad = 4;
+    return {
+        x: rx + Math.max(0, minX - pad),
+        y: ry + Math.max(0, minY - pad),
+        w: Math.min(rw, maxX - minX + pad * 2 + 1),
+        h: Math.min(rh, maxY - minY + pad * 2 + 1),
+    };
+}
+
+
     if (!navigator.mediaDevices?.getDisplayMedia) {
         showToast('이 브라우저는 화면 공유를 지원하지 않습니다. Chrome을 사용하세요.', 'error');
         return;
