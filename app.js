@@ -716,6 +716,7 @@ function scFindTextBounds(srcCanvas, rx, ry, rw, rh) {
 }
 
 
+async function startScreenCapture() {
     if (!navigator.mediaDevices?.getDisplayMedia) {
         showToast('이 브라우저는 화면 공유를 지원하지 않습니다. Chrome을 사용하세요.', 'error');
         return;
