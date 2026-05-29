@@ -619,7 +619,7 @@ async function startScreenCapture() {
         return;
     }
     try {
-        _scStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        _scStream = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: 'window' }, audio: false });
         const video = document.getElementById('sc-video');
         video.srcObject = _scStream;
         await new Promise(r => { video.onloadedmetadata = r; });
