@@ -25,6 +25,23 @@ let _lastHData       = {};
 let _mulN = 1, _mulH = 1;
 let _invDebounceTimer = null;
 
+/* ━━━ 하드 소탕 자동 초기화 (매일 새벽 4시) ━ */
+function checkHardReset() {
+    const now = new Date();
+    // 오늘 새벽 4시 기준점
+    const reset4am = new Date(now);
+    reset4am.setHours(4, 0, 0, 0);
+    // 현재가 4시 이전이면 어제 새벽 4시가 기준
+    if (now < reset4am) reset4am.setDate(reset4am.getDate() - 1);
+
+    const lastReset = parseInt(localStorage.getItem('ba_hard_reset_ts') || '0');
+    if (lastReset < reset4am.getTime()) {
+        localStorage.setItem('ba_hard_count', '{}');
+        localStorage.setItem('ba_hard_reset_ts', String(reset4am.getTime()));
+        if (lastReset > 0) showToast('🔄 새벽 4시가 지나 하드 소탕 횟수가 자동 초기화되었습니다.', 'info', 4000);
+    }
+}
+
 /* ━━━ 토스트 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 function showToast(msg, type = 'info', duration = 2800) {
     const c = document.getElementById('toast-container');
@@ -46,6 +63,7 @@ window.addEventListener('load', () => {
     const savedCode = localStorage.getItem('ba_friend_code');
     if (savedCode) document.getElementById('friendCode').value = savedCode;
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+    checkHardReset();
 
     const toggleBtn  = document.getElementById('toggleInventoryBtn');
     const invWrapper = document.getElementById('inventoryWrapper');
