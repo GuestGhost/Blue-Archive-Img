@@ -740,12 +740,12 @@ async function scProcessGrid(x1, y1, x2, y2) {
 
                 let qty = null;
                 try {
-                    const { data: { text } } = await Tesseract.recognize(tmpOcr, 'eng', {
+                    const result = await Tesseract.recognize(tmpOcr, 'eng', {
                         logger: () => {},
                         tessedit_char_whitelist: 'xXTtKk0123456789',
-                        tessedit_pageseg_mode: '7',
+                        tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE,
                     });
-                    qty = scParseQty(text);
+                    qty = scParseQty(result.data?.text ?? result.text ?? '');
                 } catch(e) { console.warn('[SC OCR]', e); }
                 if (qty === null) continue;
 
