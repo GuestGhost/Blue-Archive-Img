@@ -714,6 +714,7 @@ async function scProcessGrid(x1, y1, x2, y2) {
                 // 아이콘 영역: 셀 상단 60%, 좌우 10% 여백
                 const im   = cellW * 0.10;
                 const match = scMatchIcon(srcCanvas, cx+im, cy+im, cellW-im*2, cellH*0.60);
+                console.log(`[SC] r${r}c${c} match=${match.key} diff=${match.diff?.toFixed(1)}`);
                 if (!match.key || match.diff > 95) continue;
 
                 // 수량 OCR: 셀 하단 31%, 오른쪽 61% (뱃지 오른쪽 영역)
@@ -729,11 +730,12 @@ async function scProcessGrid(x1, y1, x2, y2) {
                 oCtx.fillRect(0, 0, tmpOcr.width, tmpOcr.height);
                 oCtx.drawImage(srcCanvas, qx, qy, qw, qh, 0, 0, tmpOcr.width, tmpOcr.height);
 
-                // 대비 강화 (이진화)
+                // 대비 강화 (이진화 - 흰 글씨→검정, 배경→흰색으로 반전)
                 const imgData = oCtx.getImageData(0, 0, tmpOcr.width, tmpOcr.height);
                 for (let i = 0; i < imgData.data.length; i += 4) {
                     const avg = (imgData.data[i] + imgData.data[i+1] + imgData.data[i+2]) / 3;
-                    const v = avg < 150 ? 0 : 255;
+                    // 밝은 픽셀(글씨)=검정, 어두운 픽셀(배경)=흰색 → Tesseract 최적화
+                    const v = avg > 140 ? 0 : 255;
                     imgData.data[i] = imgData.data[i+1] = imgData.data[i+2] = v;
                 }
                 oCtx.putImageData(imgData, 0, 0);
@@ -742,10 +744,11 @@ async function scProcessGrid(x1, y1, x2, y2) {
                 try {
                     const result = await Tesseract.recognize(tmpOcr, 'eng', {
                         logger: () => {},
-                        tessedit_char_whitelist: 'xXTtKk0123456789',
-                        tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE,
+                        tessedit_char_whitelist: 'xXKk0123456789',
+                        tessedit_pageseg_mode: '7', // PSM.SINGLE_LINE
                     });
                     qty = scParseQty(result.data?.text ?? result.text ?? '');
+                    console.log('[SC OCR raw]', result.data?.text ?? result.text);
                 } catch(e) { console.warn('[SC OCR]', e); }
                 if (qty === null) continue;
 
