@@ -370,6 +370,35 @@ body {
   color: var(--ba-text-sub);
   font-weight: 600;
 }
+.tier-exc-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.tier-exc-item input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--ba-sky-dk);
+  cursor: pointer;
+}
+.tier-exc-label {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ba-navy);
+  cursor: pointer;
+  user-select: none;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1.5px solid var(--ba-border);
+  background: var(--ba-white);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.tier-exc-item input:checked + .tier-exc-label {
+  background: var(--ba-red);
+  color: #fff;
+  border-color: var(--ba-red);
+  text-decoration: line-through;
+}
 .btn-calc-wrap { margin: 20px 0; }
 .btn-calc {
   width: 100%;

@@ -65,6 +65,7 @@ window.addEventListener('load', () => {
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
     const savedCap = localStorage.getItem('ba_inv_cap');
     if (savedCap) { const el = document.getElementById('invCap'); if (el) el.value = savedCap; }
+    drawTierExclude();
     checkHardReset();
 
     const toggleBtn  = document.getElementById('toggleInventoryBtn');
@@ -237,6 +238,42 @@ function onMulChange() {
     runAnalysis();
 }
 
+/* ━━━ 배제 티어 렌더링 / 저장 ━━━━━━━━━━━━━ */
+function drawTierExclude() {
+    const wrap = document.getElementById('tierExcludeWrap');
+    if (!wrap) return;
+    const saved = JSON.parse(localStorage.getItem('ba_exclude_tiers') || '[]');
+    wrap.innerHTML = '';
+    for (let t = 1; t <= 10; t++) {
+        const id  = `excT${t}`;
+        const chk = document.createElement('input');
+        chk.type = 'checkbox'; chk.id = id; chk.value = t;
+        chk.checked = saved.includes(t);
+        chk.addEventListener('change', saveTierExclude);
+
+        const lbl = document.createElement('label');
+        lbl.htmlFor = id;
+        lbl.className = 'tier-exc-label';
+        lbl.textContent = `T${t}`;
+
+        const wrap2 = document.createElement('div');
+        wrap2.className = 'tier-exc-item';
+        wrap2.appendChild(chk);
+        wrap2.appendChild(lbl);
+        wrap.appendChild(wrap2);
+    }
+}
+
+function saveTierExclude() {
+    const excluded = Array.from(document.querySelectorAll('#tierExcludeWrap input:checked'))
+        .map(el => parseInt(el.value));
+    localStorage.setItem('ba_exclude_tiers', JSON.stringify(excluded));
+}
+
+function getExcludedTiers() {
+    return JSON.parse(localStorage.getItem('ba_exclude_tiers') || '[]');
+}
+
 /* ━━━ 분석 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 function getInvCap() {
     const el = document.getElementById('invCap');
@@ -254,24 +291,28 @@ function applyInvCap(raw, cap) {
 }
 
 function runAnalysis() {
-    const rawInv = JSON.parse(localStorage.getItem('ba_inv_data') || '{}');
-    const cap    = getInvCap();
-    const inv    = applyInvCap(rawInv, cap);
-    const hData  = JSON.parse(localStorage.getItem('ba_hard_count') || '{}');
+    const rawInv   = JSON.parse(localStorage.getItem('ba_inv_data') || '{}');
+    const cap      = getInvCap();
+    const inv      = applyInvCap(rawInv, cap);
+    const hData    = JSON.parse(localStorage.getItem('ba_hard_count') || '{}');
+    const excluded = getExcludedTiers();
     const { mulN, mulH } = getMultipliers();
     document.getElementById('stale-notice').style.display = 'none';
     const area = document.getElementById('results-area');
     area.innerHTML = `<div style="text-align:center;padding:40px;color:var(--ba-text-sub);font-weight:700">⏳ 분석 중...</div>`;
 
     requestAnimationFrame(() => {
-        const allCounts  = GLOBAL_RAW_DATA.map(item => inv[`${item.category}_T${item.tier}`] || 0);
+        const filteredData = excluded.length
+            ? GLOBAL_RAW_DATA.filter(item => !excluded.includes(item.tier))
+            : GLOBAL_RAW_DATA;
+        const allCounts  = filteredData.map(item => inv[`${item.category}_T${item.tier}`] || 0);
         const globalAvg  = allCounts.reduce((a,b) => a+b, 0) / (allCounts.length || 1);
         const globalMin  = allCounts.length ? Math.min(...allCounts) : 0;
         const globalMax  = allCounts.length ? Math.max(...allCounts) : 0;
         const globalRange= Math.max(globalMax - globalMin, 1);
 
         const areaScores = {};
-        GLOBAL_RAW_DATA.forEach(item => {
+        filteredData.forEach(item => {
             const k = `${item.category}_T${item.tier}`;
             const count = inv[k] || 0;
             item.mission_drops.forEach(d => {
