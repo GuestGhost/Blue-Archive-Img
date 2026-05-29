@@ -89,6 +89,17 @@
       <span class="cap-desc">초과 시 이 값으로 인식 · 0이면 그대로</span>
     </div>
 
+    <!-- 분석 배제 티어 선택 -->
+    <div class="cap-wrap" style="flex-direction:column;align-items:flex-start;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px;width:100%">
+        <span class="cap-label">🚫 분석 배제 티어</span>
+        <span class="cap-desc">체크한 티어는 파밍 구역 분석에서 제외됩니다</span>
+      </div>
+      <div id="tierExcludeWrap" style="display:flex;gap:6px;flex-wrap:wrap">
+        <!-- JS에서 렌더링 -->
+      </div>
+    </div>
+
     <!-- 분석 버튼 -->
     <div class="btn-calc-wrap">
       <button class="btn-calc" onclick="runAnalysis()">최적 파밍 구역 분석 시작</button>
