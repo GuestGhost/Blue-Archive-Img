@@ -839,7 +839,35 @@ body {
 .toast.error   { background: linear-gradient(135deg, var(--ba-red), #C04050); }
 .toast.info    { background: linear-gradient(135deg, var(--ba-sky), var(--ba-sky-dk)); }
 .toast.warning { background: linear-gradient(135deg, #F5C842, #D4A020); color: #2A1A00; }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   화면 인식
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.sc-card {
+  background: var(--ba-white);
+  border-radius: 16px;
+  border: 1.5px solid var(--ba-border);
+  padding: 18px 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(91,184,245,0.08);
+}
+.sc-intro {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.sc-intro-text {
+  flex: 1;
+  font-size: 13px;
+  color: var(--ba-text-sub);
+  font-weight: 600;
+  line-height: 1.7;
+  min-width: 200px;
+}
+.sc-intro-text a { color: var(--ba-sky-dk); }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 </head>
 <body>
 
@@ -901,6 +929,46 @@ body {
 
     <div id="inventoryWrapper" class="inventory-collapsible">
       <div id="inventory-ui"></div>
+    </div>
+
+    <!-- 화면 인식 -->
+    <div class="section-title" style="margin-top:8px">
+      <div class="section-title-left">
+        <div class="section-title-bar"></div>
+        <span class="section-title-text">📷 화면 인식으로 인벤토리 자동 입력</span>
+      </div>
+    </div>
+    <div class="sc-card">
+      <div class="sc-intro">
+        <span class="sc-intro-text">
+          게임 장비 목록 화면을 공유하면 보유 수량을 자동으로 인식합니다.<br>
+          <small>⚠️ 티스토리 iframe 내에서는 동작하지 않습니다.
+            <a href="." target="_blank">새 탭에서 열기</a></small>
+        </span>
+        <button class="ba-btn ba-btn-primary" onclick="startScreenCapture()">📷 화면 공유 시작</button>
+      </div>
+      <div id="sc-live" style="display:none;margin-top:14px">
+        <video id="sc-video" autoplay muted playsinline style="display:none"></video>
+        <canvas id="sc-canvas" style="display:none"></canvas>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="ba-btn ba-btn-primary" onclick="scCaptureFrame()">📸 캡처 &amp; 분석</button>
+          <button class="ba-btn ba-btn-ghost" onclick="stopScreenCapture()">■ 공유 중지</button>
+          <span style="font-size:12px;color:var(--ba-green);font-weight:700">● 공유 중</span>
+        </div>
+        <div style="margin-top:8px;font-size:12px;color:var(--ba-text-sub);font-weight:600">
+          게임 장비 목록 화면으로 이동 후 캡처하세요.
+        </div>
+      </div>
+      <div id="sc-select-wrap" style="display:none;margin-top:14px">
+        <div style="font-size:12px;font-weight:700;color:var(--ba-text-sub);margin-bottom:8px">
+          👆 장비 아이콘 그리드 영역을 드래그로 선택하세요
+        </div>
+        <div id="sc-canvas-wrap" style="position:relative;display:inline-block;max-width:100%">
+          <canvas id="sc-display" style="cursor:crosshair;max-width:100%;border-radius:8px;border:1.5px solid var(--ba-border);display:block;user-select:none;-webkit-user-select:none"></canvas>
+          <div id="sc-sel-overlay" style="display:none;position:absolute;border:2px solid var(--ba-sky);background:rgba(91,184,245,0.15);pointer-events:none;border-radius:4px;box-sizing:border-box"></div>
+        </div>
+      </div>
+      <div id="sc-result" style="display:none;margin-top:14px"></div>
     </div>
 
     <!-- 분석 버튼 -->
@@ -1418,6 +1486,359 @@ function confirmModal() {
     Object.entries(inv).forEach(([k,v]) => { const el = document.getElementById(k); if (el) el.value = v; });
     closeModal(); runAnalysis();
     showToast('✅ 반영 완료! 분석 결과가 갱신되었습니다.', 'success');
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   화면 인식
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+let _scStream = null;
+let _scWorker = null;
+const _scIcons = {};
+let _scIconsLoaded = false;
+const SC_MATCH_SIZE = 32;
+const SC_BASE = "https://raw.githubusercontent.com/GuestGhost/Blue-Archive-Img/refs/heads/main/images";
+const SC_ICON_FILES = {
+    Hat:     Array.from({length:10},(_,i)=>`Equipment_Icon_Hat_Tier${i+1}.png`),
+    Gloves:  Array.from({length:10},(_,i)=>`Equipment_Icon_Gloves_Tier${i+1}.png`),
+    Shoes:   Array.from({length:10},(_,i)=>`Equipment_Icon_Shoes_Tier${i+1}.png`),
+    Bag:     Array.from({length:10},(_,i)=>`Equipment_Icon_Bag_Tier${i+1}.png`),
+    Badge:   Array.from({length:10},(_,i)=>`Equipment_Icon_Badge_Tier${i+1}.png`),
+    Hairpin: Array.from({length:10},(_,i)=>`Equipment_Icon_Hairpin_Tier${i+1}.png`),
+    Charm:   Array.from({length:10},(_,i)=>`Equipment_Icon_Charm_Tier${i+1}.png`),
+    Watch:   Array.from({length:10},(_,i)=>`Equipment_Icon_Watch_Tier${i+1}.png`),
+    Necklace:Array.from({length:10},(_,i)=>`Equipment_Icon_Necklace_Tier${i+1}.png`),
+};
+
+async function scLoadIcons() {
+    if (_scIconsLoaded) return;
+    const tmp = document.createElement('canvas');
+    tmp.width = tmp.height = SC_MATCH_SIZE;
+    const ctx = tmp.getContext('2d', { willReadFrequently: true });
+    const tasks = [];
+    for (const [cat, files] of Object.entries(SC_ICON_FILES)) {
+        for (let t = 1; t <= 10; t++) {
+            const key = `${cat}_T${t}`;
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.src = `${SC_BASE}/${files[t-1]}`;
+            tasks.push(new Promise(resolve => {
+                img.onload = () => {
+                    ctx.clearRect(0, 0, SC_MATCH_SIZE, SC_MATCH_SIZE);
+                    ctx.drawImage(img, 0, 0, SC_MATCH_SIZE, SC_MATCH_SIZE);
+                    _scIcons[key] = Array.from(ctx.getImageData(0, 0, SC_MATCH_SIZE, SC_MATCH_SIZE).data);
+                    resolve();
+                };
+                img.onerror = () => resolve();
+            }));
+        }
+    }
+    await Promise.all(tasks);
+    _scIconsLoaded = true;
+}
+
+async function scInitWorker() {
+    if (_scWorker) return;
+    try {
+        _scWorker = await Tesseract.createWorker('eng', 1, { logger: () => {} });
+        await _scWorker.setParameters({
+            tessedit_char_whitelist: 'xXTtKk0123456789',
+            tessedit_pageseg_mode: '7',
+        });
+    } catch(e) { console.warn('[SC] Tesseract init failed', e); }
+}
+
+function scPixelDiff(a, b) {
+    let d = 0;
+    for (let i = 0; i < a.length; i += 4)
+        d += Math.abs(a[i]-b[i]) + Math.abs(a[i+1]-b[i+1]) + Math.abs(a[i+2]-b[i+2]);
+    return d / (a.length / 4 * 3);
+}
+
+function scMatchIcon(srcCanvas, x, y, w, h) {
+    const tmp = document.createElement('canvas');
+    tmp.width = tmp.height = SC_MATCH_SIZE;
+    const ctx = tmp.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(srcCanvas, x, y, w, h, 0, 0, SC_MATCH_SIZE, SC_MATCH_SIZE);
+    const cellData = Array.from(ctx.getImageData(0, 0, SC_MATCH_SIZE, SC_MATCH_SIZE).data);
+    let best = { key: null, diff: Infinity };
+    for (const [key, refData] of Object.entries(_scIcons)) {
+        const d = scPixelDiff(cellData, refData);
+        if (d < best.diff) best = { key, diff: d };
+    }
+    return best;
+}
+
+function scParseQty(text) {
+    const m = text.replace(/\s/g,'').match(/[xX](\d[\d,.]*)\s*([Kk])?/);
+    if (!m) return null;
+    let n = parseFloat(m[1].replace(/,/g,''));
+    if (isNaN(n)) return null;
+    if (m[2]) n *= 1000;
+    return Math.round(n);
+}
+
+/* 셀 높이 자동 측정 — 티어 뱃지(진한 파란 원) 위치 기반 */
+function scMeasureCellHeight(ctx, x1, y1, x2, y2, cellW) {
+    const fullH = Math.round(y2 - y1);
+    const badgeCentersY = [];
+
+    for (let col = 0; col < 5; col++) {
+        // 뱃지는 각 셀 왼쪽 15% 지점에 위치
+        const sampleX = Math.round(x1 + (col + 0.15) * cellW);
+        if (sampleX >= x2) continue;
+        const imgData = ctx.getImageData(sampleX, Math.round(y1), 1, fullH);
+        const data = imgData.data;
+        let inBadge = false, badgeStart = -1;
+        for (let py = 0; py < fullH; py++) {
+            const idx = py * 4;
+            const r = data[idx], g = data[idx+1], b = data[idx+2];
+            // 진한 파란색: R<100, G<180, B>140, B가 R의 1.8배 이상
+            const isBadge = r < 100 && g < 180 && b > 140 && b > r * 1.8;
+            if (isBadge && !inBadge) { inBadge = true; badgeStart = py; }
+            if (!isBadge && inBadge) {
+                badgeCentersY.push((badgeStart + py) / 2);
+                inBadge = false;
+            }
+        }
+    }
+
+    if (badgeCentersY.length < 2) return cellW * 1.1; // 폴백
+
+    badgeCentersY.sort((a, b) => a - b);
+    const gaps = [];
+    for (let i = 1; i < badgeCentersY.length; i++) {
+        const gap = badgeCentersY[i] - badgeCentersY[i-1];
+        if (gap > cellW * 0.5 && gap < cellW * 2.2) gaps.push(gap);
+    }
+    if (!gaps.length) return cellW * 1.1;
+    gaps.sort((a, b) => a - b);
+    return gaps[Math.floor(gaps.length / 2)]; // 중앙값
+}
+
+async function startScreenCapture() {
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+        showToast('이 브라우저는 화면 공유를 지원하지 않습니다. Chrome을 사용하세요.', 'error');
+        return;
+    }
+    try {
+        _scStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        const video = document.getElementById('sc-video');
+        video.srcObject = _scStream;
+        await new Promise(r => { video.onloadedmetadata = r; });
+        video.play();
+        document.getElementById('sc-live').style.display = 'block';
+        _scStream.getVideoTracks()[0].addEventListener('ended', stopScreenCapture);
+        showToast('게임 장비 목록 화면으로 이동 후 [캡처 & 분석]을 누르세요.', 'info', 4000);
+        scLoadIcons();
+        scInitWorker();
+    } catch(e) {
+        if (e.name !== 'NotAllowedError' && e.name !== 'AbortError')
+            showToast('화면 공유 오류: ' + e.message, 'error');
+    }
+}
+
+function stopScreenCapture() {
+    if (_scStream) { _scStream.getTracks().forEach(t => t.stop()); _scStream = null; }
+    ['sc-live','sc-select-wrap','sc-result'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+}
+
+function scCaptureFrame() {
+    const video = document.getElementById('sc-video');
+    if (!video.videoWidth) return showToast('화면 공유 대기 중입니다.', 'warning');
+    const canvas = document.getElementById('sc-canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+
+    const displayCanvas = document.getElementById('sc-display');
+    const maxW = Math.min(700, (document.querySelector('.page-wrap')?.offsetWidth || 700) - 40);
+    const scale = Math.min(1, maxW / canvas.width);
+    displayCanvas.width = Math.round(canvas.width * scale);
+    displayCanvas.height = Math.round(canvas.height * scale);
+    displayCanvas._scScale = scale;
+    displayCanvas.getContext('2d').drawImage(canvas, 0, 0, displayCanvas.width, displayCanvas.height);
+
+    document.getElementById('sc-select-wrap').style.display = 'block';
+    document.getElementById('sc-result').style.display = 'none';
+    scInitDrag(displayCanvas);
+    showToast('장비 그리드 영역을 드래그로 선택하세요.', 'info');
+}
+
+function scInitDrag(dc) {
+    const overlay = document.getElementById('sc-sel-overlay');
+    let dragging = false, sx = 0, sy = 0;
+
+    const getPos = (e) => {
+        const r = dc.getBoundingClientRect();
+        const src = e.touches ? e.touches[0] : e;
+        return [
+            Math.max(0, Math.min(src.clientX - r.left, dc.width)),
+            Math.max(0, Math.min(src.clientY - r.top,  dc.height))
+        ];
+    };
+    const updateOverlay = (ex, ey) => {
+        Object.assign(overlay.style, {
+            display:'block',
+            left:  `${Math.min(sx,ex)}px`, top:    `${Math.min(sy,ey)}px`,
+            width: `${Math.abs(ex-sx)}px`, height: `${Math.abs(ey-sy)}px`
+        });
+    };
+    const finish = async (ex, ey) => {
+        dragging = false;
+        const scale = dc._scScale || 1;
+        const [x1,y1] = [Math.min(sx,ex)/scale, Math.min(sy,ey)/scale];
+        const [x2,y2] = [Math.max(sx,ex)/scale, Math.max(sy,ey)/scale];
+        if (x2-x1 < 80 || y2-y1 < 40) { showToast('영역이 너무 작습니다. 다시 선택하세요.','warning'); return; }
+        await scProcessGrid(x1, y1, x2, y2);
+    };
+
+    dc.onmousedown  = (e) => { e.preventDefault(); [sx,sy]=getPos(e); dragging=true; overlay.style.display='none'; };
+    dc.onmousemove  = (e) => { if (dragging) updateOverlay(...getPos(e)); };
+    dc.onmouseup    = (e) => { if (dragging) finish(...getPos(e)); };
+    dc.ontouchstart = (e) => { e.preventDefault(); [sx,sy]=getPos(e); dragging=true; };
+    dc.ontouchmove  = (e) => { e.preventDefault(); if (dragging) updateOverlay(...getPos(e)); };
+    dc.ontouchend   = (e) => { if (dragging) finish(...getPos({ touches: e.changedTouches })); };
+}
+
+async function scProcessGrid(x1, y1, x2, y2) {
+    setLoading(true);
+    const srcCanvas = document.getElementById('sc-canvas');
+    const srcCtx = srcCanvas.getContext('2d', { willReadFrequently: true });
+    try {
+        await scLoadIcons();
+        await scInitWorker();
+
+        const cols  = 5;
+        const cellW = (x2 - x1) / cols;
+        // 해상도 독립: 뱃지 위치로 셀 높이 자동 측정
+        const cellH = scMeasureCellHeight(srcCtx, x1, y1, x2, y2, cellW);
+        const rows  = Math.max(1, Math.round((y2 - y1) / cellH));
+
+        const detected = [];
+        const tmpOcr   = document.createElement('canvas');
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const cx = x1 + c * cellW;
+                const cy = y1 + r * cellH;
+                if (cx + cellW > srcCanvas.width || cy + cellH > srcCanvas.height) continue;
+
+                // 아이콘 영역: 셀 상단 60%, 좌우 10% 여백
+                const im   = cellW * 0.10;
+                const match = scMatchIcon(srcCanvas, cx+im, cy+im, cellW-im*2, cellH*0.60);
+                if (!match.key || match.diff > 95) continue;
+
+                // 수량 OCR: 셀 하단 31%, 오른쪽 61% (뱃지 오른쪽 영역)
+                const qx = Math.round(cx + cellW * 0.37);
+                const qy = Math.round(cy + cellH * 0.67);
+                const qw = Math.round(cellW * 0.61);
+                const qh = Math.round(cellH * 0.31);
+                const S  = 3; // 업스케일 배율
+                tmpOcr.width  = qw * S;
+                tmpOcr.height = qh * S;
+                const oCtx = tmpOcr.getContext('2d', { willReadFrequently: true });
+                oCtx.fillStyle = '#fff';
+                oCtx.fillRect(0, 0, tmpOcr.width, tmpOcr.height);
+                oCtx.drawImage(srcCanvas, qx, qy, qw, qh, 0, 0, tmpOcr.width, tmpOcr.height);
+
+                // 대비 강화 (이진화)
+                const imgData = oCtx.getImageData(0, 0, tmpOcr.width, tmpOcr.height);
+                for (let i = 0; i < imgData.data.length; i += 4) {
+                    const avg = (imgData.data[i] + imgData.data[i+1] + imgData.data[i+2]) / 3;
+                    const v = avg < 150 ? 0 : 255;
+                    imgData.data[i] = imgData.data[i+1] = imgData.data[i+2] = v;
+                }
+                oCtx.putImageData(imgData, 0, 0);
+
+                let qty = null;
+                if (_scWorker) {
+                    try {
+                        const { data: { text } } = await _scWorker.recognize(tmpOcr);
+                        qty = scParseQty(text);
+                    } catch(e) { console.warn('[SC OCR]', e); }
+                }
+                if (qty === null) continue;
+
+                const [cat, tierStr] = match.key.split('_');
+                detected.push({ key: match.key, cat, tier: parseInt(tierStr.slice(1)), qty });
+            }
+        }
+        scRenderResults(detected);
+    } catch(e) {
+        showToast('분석 오류: ' + e.message, 'error');
+        console.error('[scProcessGrid]', e);
+    } finally {
+        setLoading(false);
+    }
+}
+
+function scRenderResults(items) {
+    const el = document.getElementById('sc-result');
+    if (!items.length) {
+        el.innerHTML = `
+          <div style="text-align:center;padding:20px;color:var(--ba-red);font-weight:700;line-height:2">
+            ⚠️ 인식된 장비가 없습니다.<br>
+            <span style="color:var(--ba-text-sub);font-size:12px;font-weight:600">
+              장비 목록 화면인지 확인하고, 아이콘 전체가 포함되도록 선택하세요.
+            </span>
+          </div>`;
+        el.style.display = 'block';
+        return;
+    }
+    const rows = items.map(item => `
+      <tr style="border-bottom:1px solid var(--ba-paper2)">
+        <td style="padding:7px 10px">
+          <img src="${SC_BASE}/${SC_ICON_FILES[item.cat][item.tier-1]}"
+            style="width:36px;height:28px;object-fit:contain;border-radius:4px;background:rgba(91,184,245,0.07);border:1px solid var(--ba-border);padding:2px;display:block">
+        </td>
+        <td style="padding:7px 10px;font-weight:700;font-size:13px;color:var(--ba-navy)">
+          ${CATEGORIES[item.cat]} T${item.tier}
+        </td>
+        <td style="padding:7px 10px">
+          <input type="number" min="0" value="${item.qty}" data-sc-key="${item.key}"
+            style="width:90px;padding:6px 8px;border:1.5px solid var(--ba-border);border-radius:8px;font-weight:800;font-size:13px;text-align:center;font-family:'Rajdhani',sans-serif;color:var(--ba-sky-dk);outline:none">
+        </td>
+      </tr>`).join('');
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:800;color:var(--ba-navy)">📋 인식 결과</span>
+        <span style="font-size:12px;color:var(--ba-text-sub);font-weight:600">${items.length}개 · 수정 후 반영 가능</span>
+      </div>
+      <div style="border:1.5px solid var(--ba-border);border-radius:12px;overflow:hidden">
+        <table style="width:100%;border-collapse:collapse">
+          <thead style="background:var(--ba-paper2)">
+            <tr>
+              <th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--ba-text-sub);font-weight:700">아이콘</th>
+              <th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--ba-text-sub);font-weight:700">아이템</th>
+              <th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--ba-text-sub);font-weight:700">인식 수량</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <button class="ba-btn ba-btn-primary" style="margin-top:12px;width:100%;padding:13px;border-radius:12px" onclick="scApply()">
+        ✅ 인벤토리에 반영
+      </button>`;
+    el.style.display = 'block';
+}
+
+function scApply() {
+    const inv = JSON.parse(localStorage.getItem('ba_inv_data') || '{}');
+    let count = 0;
+    document.querySelectorAll('#sc-result input[data-sc-key]').forEach(inp => {
+        const key = inp.getAttribute('data-sc-key');
+        const val = Math.max(parseInt(inp.value) || 0, 0);
+        inv[key] = val;
+        const el = document.getElementById(key);
+        if (el) el.value = val;
+        count++;
+    });
+    localStorage.setItem('ba_inv_data', JSON.stringify(inv));
+    document.getElementById('stale-notice').style.display = 'flex';
+    showToast(`✅ ${count}개 항목이 인벤토리에 반영되었습니다!`, 'success');
 }
 
 /* ━━━ iframe 높이 자동 전달 ━━━━━━━━━━━━━━━━━ */
