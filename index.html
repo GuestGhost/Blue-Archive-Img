@@ -1419,6 +1419,16 @@ function confirmModal() {
     closeModal(); runAnalysis();
     showToast('✅ 반영 완료! 분석 결과가 갱신되었습니다.', 'success');
 }
+
+/* ━━━ iframe 높이 자동 전달 ━━━━━━━━━━━━━━━━━ */
+(function() {
+    function sendHeight() {
+        window.parent.postMessage({ type: 'resize', height: document.body.scrollHeight }, '*');
+    }
+    const ro = new ResizeObserver(sendHeight);
+    ro.observe(document.body);
+    sendHeight();
+})();
 </script>
 </body>
 </html>
