@@ -40,6 +40,15 @@
 
 <div class="page-wrap">
 
+  <!-- 기능 탭 -->
+  <div class="view-tabs">
+    <button class="view-tab active" id="tab-farm" onclick="switchView('farm')">📦 파밍 효율 도우미</button>
+    <button class="view-tab" id="tab-predict" onclick="switchView('predict')">🔍 보물찾기 예측</button>
+  </div>
+
+  <!-- ━━━ 뷰 1: 파밍 효율 도우미 ━━━ -->
+  <div id="view-farm">
+
   <!-- 인증 -->
   <div class="auth-card">
     <div class="auth-body">
@@ -111,6 +120,56 @@
 
     <div id="results-area"></div>
   </div>
+  </div><!-- /view-farm -->
+
+  <!-- ━━━ 뷰 2: 보물찾기 예측 ━━━ -->
+  <div id="view-predict" style="display:none;">
+
+    <div class="section-title">
+      <div class="section-title-left">
+        <div class="section-title-bar"></div>
+        <span class="section-title-text">🔍 보물찾기 예측</span>
+      </div>
+      <div class="section-title-right">
+        <button class="ba-btn-sm ba-btn-sm-danger" onclick="predictReset()">🔄 초기화</button>
+      </div>
+    </div>
+
+    <div class="predict-intro">
+      이벤트의 보물찾기 판을 그대로 옮겨보세요. 칸을 눌러 <b>열어본 결과(💎 보물 / ✕ 꽝)</b>를 기록하면,
+      기록과 맞는 모든 배치를 계산해 남은 칸마다 보물이 있을 <b>확률</b>을 구하고 다음에 열 칸을 추천합니다.
+    </div>
+
+    <!-- 이벤트 / 회차 선택 -->
+    <div class="predict-event-bar">
+      <label class="cap-label" for="predictEvent">🎪 이벤트</label>
+      <select class="mul-select" id="predictEvent" onchange="predictOnEventChange()"></select>
+      <label class="cap-label" for="predictCase">🔁 회차</label>
+      <select class="mul-select" id="predictCase" onchange="predictOnCaseChange()"></select>
+    </div>
+
+    <!-- 추천 요약 -->
+    <div id="predict-summary"></div>
+
+    <!-- 그리드 -->
+    <div id="predict-grid-wrap" class="predict-grid-wrap"></div>
+
+    <!-- 범례 -->
+    <div id="predict-legend"></div>
+
+  </div><!-- /view-predict -->
+
+</div>
+
+<!-- 칸 기록 모달 -->
+<div id="cellMarkModal" class="modal" onclick="if(event.target===this)predictCloseMark()">
+  <div class="modal-content">
+    <div class="modal-header">
+      <span class="modal-header-title" id="cellMarkTitle">칸 기록</span>
+      <button class="modal-close-btn" onclick="predictCloseMark()" aria-label="닫기">×</button>
+    </div>
+    <div class="modal-body" id="cellMarkBody"></div>
+  </div>
 </div>
 
 <!-- 수량 입력 모달 -->
@@ -128,6 +187,8 @@
   </div>
 </div>
 
+<script src="predict-data.js"></script>
 <script src="app.js"></script>
+<script src="predict.js"></script>
 </body>
 </html>
