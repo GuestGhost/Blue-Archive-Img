@@ -21,48 +21,6 @@ let _pGrid   = null;     // string[][]  각 칸 상태
 let _pMarkCell = null;   // 기록 중인 칸 {r,c}
 let _pInited = false;
 
-/* 계산: Web Worker + 캐시 + 오래된 요청 취소 */
-let _pWorker   = null;        // Web Worker 인스턴스
-let _pWorkerBroken = false;   // 워커 생성/실행 실패 시 동기 폴백
-let _pReqId    = 0;           // 현재 유효 요청 id (이전 요청은 무시)
-let _pPending  = {};          // { reqId: callback }
-let _pLastProb = null;        // 직전 확률(계산 중 임시 표시용)
-const _pCache  = new Map();   // gridKey → result (최근 60개)
-
-function predictGetWorker() {
-    if (_pWorkerBroken) return null;
-    if (_pWorker) return _pWorker;
-    try {
-        _pWorker = new Worker('predict-worker.js');
-        _pWorker.onmessage = (e) => {
-            const { id } = e.data;
-            const cb = _pPending[id];
-            if (cb) { delete _pPending[id]; cb(e.data); }
-        };
-        _pWorker.onerror = () => {
-            // 워커 실행 불가(file:// 등) → 이후 동기 폴백
-            _pWorkerBroken = true;
-            try { _pWorker.terminate(); } catch (e) { /* noop */ }
-            _pWorker = null;
-            _pPending = {};
-            if (_pEvent && _pCase && _pGrid) predictRender();
-        };
-        return _pWorker;
-    } catch (e) {
-        _pWorkerBroken = true;
-        _pWorker = null;
-        return null;
-    }
-}
-
-function predictGridKey() {
-    return `${_pEvent.id}|${_pCase.value}|${_pGrid.map(r => r.join('')).join(',')}`;
-}
-function predictCacheSet(key, res) {
-    _pCache.set(key, res);
-    if (_pCache.size > 60) _pCache.delete(_pCache.keys().next().value);
-}
-
 /* ━━━ 뷰 전환 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 function switchView(name) {
     const farm    = document.getElementById('view-farm');
@@ -145,81 +103,123 @@ function predictSaveGridState() {
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   확률 계산 (Web Worker 비동기 + 동기 폴백)
-   계산 로직은 predict-engine.js의 predictComputeCore.
+   확률 계산 엔진
+   ──────────────────────────────────────────
+   모든 보물(직사각형, 회전 가능)을 격자에 겹치지 않게,
+   꽝(blocked) 칸을 피해 배치하는 모든 조합을 백트래킹
+   으로 완전 열거. 각 완성 배치가 모든 보물(hit) 칸을
+   덮을 때만 유효 조합으로 인정하고, 칸별 점유 횟수를
+   집계 → 칸 확률 = 점유횟수 / 유효조합수.
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-function predictBestCell(prob) {
-    let best = null;
-    for (let r = 0; r < PREDICT_H; r++) for (let c = 0; c < PREDICT_W; c++) {
-        if (_pGrid[r][c] !== 'hidden') continue;
-        const p = prob[r][c];
-        if (!best || p > best.p) best = { r, c, p };
-    }
-    return best;
-}
+function predictCompute(caseOption, grid) {
+    const W = PREDICT_W, H = PREDICT_H, N = W * H;
 
-function predictApplyResult(result) {
-    _pLastProb = result.prob;
-    const best = predictBestCell(result.prob);
-    predictRenderSummary(result, best);
-    predictRenderGrid(result.prob, best, false);
-    predictRenderLegend(result.prob, result);
+    // blocked / hit 비트 정보
+    const blocked = new Uint8Array(N);
+    const hitIdx  = [];
+    for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
+        const i = r * W + c;
+        if (grid[r][c] === 'blocked') blocked[i] = 1;
+        else if (grid[r][c] === 'hit') hitIdx.push(i);
+    }
+
+    // 보물 인스턴스 펼치기 (그룹 단위로 — 같은 크기는 한 그룹)
+    // 각 그룹: { placements: [maskCells...], count }
+    const groups = caseOption.objects.map(obj => {
+        const oriSet = new Set();
+        const oris = [];
+        const add = (w, h) => { const k = w + 'x' + h; if (!oriSet.has(k)) { oriSet.add(k); oris.push({ w, h }); } };
+        add(obj.w, obj.h);
+        add(obj.h, obj.w); // 90도 회전
+        const placements = [];
+        oris.forEach(({ w, h }) => {
+            for (let r = 0; r <= H - h; r++) for (let c = 0; c <= W - w; c++) {
+                const cells = [];
+                let ok = true;
+                for (let dy = 0; dy < h && ok; dy++) for (let dx = 0; dx < w; dx++) {
+                    const idx = (r + dy) * W + (c + dx);
+                    if (blocked[idx]) { ok = false; break; }
+                    cells.push(idx);
+                }
+                if (ok) placements.push({ cells, anchor: r * W + c });
+            }
+        });
+        return { count: obj.count, placements };
+    });
+
+    // 백트래킹: 면적 큰 그룹부터 (가지치기 효율)
+    const order = groups
+        .map((g, i) => ({ g, i, area: caseOption.objects[i].w * caseOption.objects[i].h }))
+        .sort((a, b) => b.area - a.area);
+
+    const occupied = new Uint8Array(N);
+    const coverCount = new Float64Array(N);
+    let totalCombos = 0;
+    let aborted = false;
+
+    // 현재까지 덮은 hit 수를 추적하기 위한 보조
+    function place(orderIdx) {
+        if (aborted) return;
+        if (orderIdx === order.length) {
+            // 모든 보물 배치 완료 → hit 칸 전부 덮였는지 확인
+            for (let k = 0; k < hitIdx.length; k++) if (!occupied[hitIdx[k]]) return;
+            totalCombos++;
+            if (totalCombos > PREDICT_MAX_COMBOS) { aborted = true; return; }
+            for (let i = 0; i < N; i++) if (occupied[i]) coverCount[i]++;
+            return;
+        }
+        const { g } = order[orderIdx];
+        predictPlaceGroup(g.placements, g.count, 0, -1, orderIdx, occupied, place);
+    }
+
+    // 같은 그룹 내 count개를 겹치지 않게 배치 (anchor 증가 강제로 중복 순열 제거)
+    function predictPlaceGroup(placements, remaining, startP, minAnchor, orderIdx, occ, next) {
+        if (aborted) return;
+        if (remaining === 0) { next(orderIdx + 1); return; }
+        for (let p = startP; p < placements.length; p++) {
+            const pl = placements[p];
+            if (pl.anchor <= minAnchor) continue;       // 중복 순열 방지
+            // 충돌 검사
+            let clash = false;
+            for (let k = 0; k < pl.cells.length; k++) if (occ[pl.cells[k]]) { clash = true; break; }
+            if (clash) continue;
+            for (let k = 0; k < pl.cells.length; k++) occ[pl.cells[k]] = 1;
+            predictPlaceGroup(placements, remaining - 1, p + 1, pl.anchor, orderIdx, occ, next);
+            for (let k = 0; k < pl.cells.length; k++) occ[pl.cells[k]] = 0;
+            if (aborted) return;
+        }
+    }
+
+    place(0);
+
+    const prob = Array.from({ length: H }, () => Array(W).fill(0));
+    if (totalCombos > 0) {
+        for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
+            const i = r * W + c;
+            prob[r][c] = grid[r][c] === 'hidden' ? coverCount[i] / totalCombos : 0;
+        }
+    }
+    return { prob, totalCombos, aborted, feasible: totalCombos > 0 };
 }
 
 /* ━━━ 렌더링 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 function predictRender() {
     if (!_pEvent || !_pCase || !_pGrid) return;
 
-    const reqId = ++_pReqId;                 // 이전 요청 무효화
-    const key   = predictGridKey();
-    const objects = _pCase.objects;
-    const gridCopy = _pGrid.map(r => r.slice());
+    const result = predictCompute(_pCase, _pGrid);
+    const { prob } = result;
 
-    // 캐시 적중 → 즉시 반영(워커 호출 없음)
-    const cached = _pCache.get(key);
-    if (cached) { predictApplyResult(cached); return; }
-
-    const done = (res) => {
-        if (reqId !== _pReqId) return;       // 오래된 결과 폐기
-        predictCacheSet(key, res);
-        predictApplyResult(res);
-    };
-
-    // 계산 중에도 격자는 즉시 클릭 가능 (직전 확률 표시 + '계산 중' 배지)
-    predictRenderGrid(_pLastProb || predictZeroProb(), null, true);
-    predictSetCalculating();
-
-    const worker = predictGetWorker();
-    if (worker) {
-        _pPending[reqId] = (msg) => {
-            if (!msg.ok) {                   // 워커 내부 오류 → 동기 폴백
-                _pWorkerBroken = true;
-                const res = predictComputeCore(PREDICT_W, PREDICT_H, objects, gridCopy, PREDICT_MAX_COMBOS);
-                done(res);
-                return;
-            }
-            done(msg);
-        };
-        worker.postMessage({ id: reqId, W: PREDICT_W, H: PREDICT_H, objects, grid: gridCopy, maxCombos: PREDICT_MAX_COMBOS });
-    } else {
-        // 동기 폴백: 스피너가 먼저 그려지도록 한 틱 미룸
-        setTimeout(() => {
-            if (reqId !== _pReqId) return;
-            const res = predictComputeCore(PREDICT_W, PREDICT_H, objects, gridCopy, PREDICT_MAX_COMBOS);
-            done(res);
-        }, 20);
+    // 다음 추천 칸 (미개봉 중 확률 최대)
+    let best = null;
+    for (let r = 0; r < PREDICT_H; r++) for (let c = 0; c < PREDICT_W; c++) {
+        if (_pGrid[r][c] !== 'hidden') continue;
+        const p = prob[r][c];
+        if (!best || p > best.p) best = { r, c, p };
     }
-}
 
-function predictZeroProb() {
-    return Array.from({ length: PREDICT_H }, () => Array(PREDICT_W).fill(0));
-}
-
-function predictSetCalculating() {
-    const el = document.getElementById('predict-summary');
-    if (el) el.innerHTML = `<div class="predict-rec calc"><span class="predict-spinner"></span>⏳ 가능한 배치 계산 중…</div>`;
-    const wrap = document.getElementById('predict-grid-wrap');
-    if (wrap) wrap.classList.add('calculating');
+    predictRenderSummary(result, best);
+    predictRenderGrid(prob, best);
+    predictRenderLegend(prob, result);
 }
 
 function predictRenderSummary(result, best) {
@@ -266,9 +266,8 @@ function predictHeat(p) {
     return `rgba(${r},${g},${b},${a})`;
 }
 
-function predictRenderGrid(prob, best, calculating) {
+function predictRenderGrid(prob, best) {
     const wrap = document.getElementById('predict-grid-wrap');
-    wrap.classList.toggle('calculating', !!calculating);
     const grid = document.createElement('div');
     grid.className = 'predict-grid';
     grid.style.gridTemplateColumns = `repeat(${PREDICT_W}, 1fr)`;

@@ -974,14 +974,6 @@ body {
   font-size: 12px; font-family: 'Rajdhani', sans-serif; font-weight: 700;
 }
 .predict-rec.none .predict-rec-pct { background: rgba(232,64,88,0.15); }
-.predict-rec.calc { background: var(--ba-sky-dk); }
-.predict-spinner {
-  width: 14px; height: 14px; border-radius: 50%;
-  border: 2px solid rgba(255,255,255,0.35); border-top-color: #fff;
-  display: inline-block; animation: predict-spin .7s linear infinite;
-}
-@keyframes predict-spin { to { transform: rotate(360deg); } }
-.predict-grid-wrap.calculating { opacity: .6; transition: opacity .1s; }
 
 .predict-grid-wrap { overflow-x: auto; margin-bottom: 18px; padding-bottom: 4px; }
 .predict-grid { display: grid; gap: 4px; min-width: 360px; }
